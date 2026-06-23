@@ -1,0 +1,24 @@
+{
+  "name": "mail-assistant-system",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@azure/msal-node": "^5.2.5",
+    "axios": "^1.18.1",
+    "better-sqlite3": "^12.11.1",
+    "dotenv": "^17.4.2",
+    "email-reply-parser": "^2.3.5",
+    "express": "^5.2.1",
+    "google-auth-library": "^10.7.0",
+    "html-to-text": "^10.0.0",
+    "langchain": "^1.5.0",
+    "nodemon": "^3.1.14"
+  }
+}
