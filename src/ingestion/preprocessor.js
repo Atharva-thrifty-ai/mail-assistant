@@ -1,5 +1,6 @@
 const { htmlToText } = require('html-to-text');
-const EmailReplyParser = require('email-reply-parser');
+const EmailReplyParserModule = require('email-reply-parser');
+const EmailReplyParser = EmailReplyParserModule.EmailReplyParser || EmailReplyParserModule.default || EmailReplyParserModule;
 
 function cleanMessageBody(rawHtmlOrText) {
     if (!rawHtmlOrText) return '';
@@ -11,7 +12,8 @@ function cleanMessageBody(rawHtmlOrText) {
     });
     
     // Strip quoted history securely instead of manual regex
-    const email = EmailReplyParser.read(plainText);
+    const parser = new EmailReplyParser();
+    const email = parser.read(plainText);
     return email.getVisibleText().trim();
 }
 

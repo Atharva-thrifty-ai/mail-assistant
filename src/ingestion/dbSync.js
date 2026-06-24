@@ -1,4 +1,4 @@
-const { statusDb, metadataDb } = require('../config/database');
+const { statusDb, metadataDb, queuesDb } = require('../config/database');
 
 function upsertStatusLock(internalThreadId) {
     const stmt = statusDb.prepare(`
@@ -49,7 +49,27 @@ function syncUiMetadata(cleanedEmail) {
     });
 }
 
+function syncThreadPayload(ueo) {
+    const stmt = queuesDb.prepare(`
+        INSERT INTO threads (internal_thread_id, live_version, payload_json)
+        VALUES (?, ?, ?)
+        ON CONFLICT(internal_thread_id, live_version) DO UPDATE SET
+            payload_json = excluded.payload_json
+    `);
+    stmt.run(ueo.internal_thread_id, ueo.live_version, JSON.stringify(ueo));
+}
+
+function deleteThreadPayload(internalThreadId, liveVersion) {
+    const stmt = queuesDb.prepare(`
+        DELETE FROM threads 
+        WHERE internal_thread_id = ? AND live_version = ?
+    `);
+    stmt.run(internalThreadId, liveVersion);
+}
+
 module.exports = {
     upsertStatusLock,
-    syncUiMetadata
+    syncUiMetadata,
+    syncThreadPayload,
+    deleteThreadPayload
 };

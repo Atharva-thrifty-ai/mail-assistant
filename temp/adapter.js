@@ -1,48 +1,27 @@
 const axios = require('axios');
 const { cleanMessageBody, generateInternalThreadId, decodeGmailBody } = require('./preprocessor');
 const { upsertStatusLock, syncUiMetadata } = require('./dbSync');
-const { metadataDb } = require('../config/database');
 const UniversalEmailObject = require('../models/ueo');
-const { OAuth2Client } = require('google-auth-library');
 
-// Initialize Google OAuth2 Client for background auto-refresh
-const oauth2Client = new OAuth2Client(
-    process.env.GOOGLE_CLIENT_ID,
-    process.env.GOOGLE_CLIENT_SECRET
-);
-
-if (process.env.GMAIL_REFRESH_TOKEN) {
-    oauth2Client.setCredentials({
-        refresh_token: process.env.GMAIL_REFRESH_TOKEN
-    });
-}
+// Note: Access tokens should typically be managed using google-auth-library and @azure/msal-node.
+// Since you will provide the tokens/keys manually for this implementation, we use environment variables.
 
 async function fetchGmailThread(threadId) {
-    const { token } = await oauth2Client.getAccessToken(); 
+    const accessToken = process.env.GMAIL_ACCESS_TOKEN; 
     const url = `https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}`;
     const response = await axios.get(url, {
-        headers: { Authorization: `Bearer ${token}` }
+        headers: { Authorization: `Bearer ${accessToken}` }
     });
     return response.data;
 }
 
-function saveGmailHistoryId(historyId) {
-    if (historyId) {
-        metadataDb.prepare(`
-            INSERT INTO sync_state (provider, latest_token)
-            VALUES ('gmail', ?)
-            ON CONFLICT(provider) DO UPDATE SET latest_token = excluded.latest_token
-        `).run(historyId.toString());
-    }
-}
-
 async function processGmailNotification(historyId) {
-    const { token } = await oauth2Client.getAccessToken();
+    const accessToken = process.env.GMAIL_ACCESS_TOKEN;
     const historyUrl = `https://gmail.googleapis.com/gmail/v1/users/me/history?startHistoryId=${historyId}`;
     let historyResponse;
     try {
         historyResponse = await axios.get(historyUrl, {
-            headers: { Authorization: `Bearer ${token}` }
+            headers: { Authorization: `Bearer ${accessToken}` }
         });
     } catch (e) {
         if (e.response && e.response.status === 404) {
@@ -53,11 +32,6 @@ async function processGmailNotification(historyId) {
     }
 
     const histories = historyResponse.data.history || [];
-    
-    if (historyResponse.data.historyId) {
-        saveGmailHistoryId(historyResponse.data.historyId);
-    }
-    
     const processedThreadIds = new Set();
     const results = [];
 
@@ -183,113 +157,7 @@ async function processGraphNotification(resourceId) {
     return [ueo];
 }
 
-async function performGmailFullSync(days = 10) {
-    const { token } = await oauth2Client.getAccessToken();
-    const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=newer_than:${days}d`;
-    let response;
-    try {
-        response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
-    } catch (e) {
-        console.error("[FULL SYNC] Failed to fetch historical messages:", e.message);
-        return [];
-    }
-
-    const messages = response.data.messages || [];
-    if (messages.length === 0) {
-        console.log(`[FULL SYNC] No emails found from the last ${days} days.`);
-        return [];
-    }
-
-    console.log(`[FULL SYNC] Found ${messages.length} messages. Processing unique threads...`);
-    
-    // We only want to process each thread once
-    const threadIds = new Set();
-    messages.forEach(m => threadIds.add(m.threadId));
-
-    const results = [];
-    for (const threadId of threadIds) {
-        try {
-            // Re-use our existing processing logic
-            const threadData = await fetchGmailThread(threadId);
-            
-            if (threadData.historyId) {
-                saveGmailHistoryId(threadData.historyId);
-            }
-
-            const threadMessages = threadData.messages || [];
-            if (threadMessages.length === 0) continue;
-            
-            const latestMsgRaw = threadMessages[threadMessages.length - 1];
-            const rawBody = decodeGmailBody(latestMsgRaw.payload);
-            const latestMessageText = cleanMessageBody(rawBody);
-            
-            const historicalMessages = [];
-            for (let i = 0; i < threadMessages.length - 1; i++) {
-                const mRaw = decodeGmailBody(threadMessages[i].payload);
-                historicalMessages.push(cleanMessageBody(mRaw));
-            }
-
-            const headers = latestMsgRaw.payload.headers || [];
-            const getHeader = (name) => {
-                const h = headers.find(h => h.name.toLowerCase() === name.toLowerCase());
-                return h ? h.value : '';
-            };
-            
-            const internalThreadId = generateInternalThreadId('gmail', threadId);
-            
-            const cleanedEmail = {
-                internal_thread_id: internalThreadId,
-                source: 'gmail',
-                provider_thread_id: threadId,
-                sender_name: getHeader('From').split('<')[0].trim(),
-                sender_email: (getHeader('From').match(/<(.+)>/) || [])[1] || getHeader('From'),
-                subject: getHeader('Subject'),
-                snippet: latestMsgRaw.snippet || latestMessageText.substring(0, 100),
-                timestamp: parseInt(latestMsgRaw.internalDate) || Date.now(),
-                has_attachments: !!latestMsgRaw.payload.parts && latestMsgRaw.payload.parts.some(p => p.filename),
-                is_unread: latestMsgRaw.labelIds && latestMsgRaw.labelIds.includes('UNREAD')
-            };
-
-            const liveVersion = upsertStatusLock(internalThreadId);
-            syncUiMetadata(cleanedEmail);
-            
-            const ueo = new UniversalEmailObject({
-                internal_thread_id: internalThreadId,
-                live_version: liveVersion,
-                latest_message: latestMessageText,
-                historical_thread_messages: historicalMessages
-            });
-            
-            results.push(ueo);
-        } catch (err) {
-            console.error(`[FULL SYNC] Error processing thread ${threadId}:`, err.message);
-        }
-    }
-    console.log(`[FULL SYNC] Complete. Processed ${results.length} unique threads.`);
-    return results;
-}
-
-async function performGmailDeltaSync() {
-    const row = metadataDb.prepare("SELECT latest_token FROM sync_state WHERE provider = 'gmail'").get();
-    if (!row || !row.latest_token) {
-        console.log("[DELTA SYNC] No historyId found. Triggering Full Sync instead.");
-        return performGmailFullSync(10);
-    }
-    
-    console.log(`[DELTA SYNC] Catching up from historyId: ${row.latest_token}...`);
-    const results = await processGmailNotification(row.latest_token);
-    if (results && results.length > 0) {
-        console.log(`[DELTA SYNC] Pulled ${results.length} missed threads.`);
-    } else {
-        console.log(`[DELTA SYNC] Up to date. No missed threads.`);
-    }
-    return results;
-}
-
 module.exports = {
     processGmailNotification,
-    processGraphNotification,
-    performGmailFullSync,
-    performGmailDeltaSync,
-    oauth2Client
+    processGraphNotification
 };

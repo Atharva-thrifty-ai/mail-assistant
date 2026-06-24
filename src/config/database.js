@@ -10,10 +10,12 @@ if (!fs.existsSync(dbDir)) {
 // We use 3 separate DBs as discussed to avoid file lock contention
 const metadataDb = new Database(path.join(dbDir, 'metadata.db'));
 const statusDb = new Database(path.join(dbDir, 'status.db'));
-const summariesDb = new Database(path.join(dbDir, 'summaries.db')); // Summaries DB included for completeness
+const summariesDb = new Database(path.join(dbDir, 'summaries.db')); // UI Summaries DB
+const queuesDb = new Database(path.join(dbDir, 'queues.db')); // Transient DB for heavy UEO payloads
+const memoryDb = new Database(path.join(dbDir, 'memory.db')); // Running Summary Dictionary for AI
 
 // Enable WAL mode for concurrency and performance
-[metadataDb, statusDb, summariesDb].forEach(db => {
+[metadataDb, statusDb, summariesDb, queuesDb, memoryDb].forEach(db => {
     db.pragma('journal_mode = WAL');
     db.pragma('synchronous = NORMAL');
 });
@@ -45,8 +47,37 @@ metadataDb.exec(`
     )
 `);
 
+// Initialize Sync State Table (for Case 1B and Case 3 delta catch-ups)
+metadataDb.exec(`
+    CREATE TABLE IF NOT EXISTS sync_state (
+        provider TEXT PRIMARY KEY,
+        latest_token TEXT NOT NULL
+    )
+`);
+
+// Initialize Threads Table in queuesDb (Transient heavy storage)
+queuesDb.exec(`
+    CREATE TABLE IF NOT EXISTS threads (
+        internal_thread_id TEXT NOT NULL,
+        live_version INTEGER NOT NULL,
+        payload_json TEXT NOT NULL,
+        PRIMARY KEY (internal_thread_id, live_version)
+    )
+`);
+
+// Initialize Memory Node Table (The Running Summary Dictionary)
+memoryDb.exec(`
+    CREATE TABLE IF NOT EXISTS running_summaries (
+        internal_thread_id TEXT PRIMARY KEY,
+        summarized_count INTEGER NOT NULL DEFAULT 0,
+        running_summary TEXT
+    )
+`);
+
 module.exports = {
     metadataDb,
     statusDb,
-    summariesDb
+    summariesDb,
+    queuesDb,
+    memoryDb
 };

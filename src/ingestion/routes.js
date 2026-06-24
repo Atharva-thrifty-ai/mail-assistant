@@ -1,6 +1,21 @@
 const express = require('express');
-const { enqueueWebhook } = require('./fetchQueue');
+const { enqueueWebhook, urgentQueue } = require('./fetchQueue');
 const router = express.Router();
+
+// The Internal Bridge API (For the BFF Queue Jump)
+router.post('/api/internal/urgent', (req, res) => {
+    const { internal_thread_id, live_version } = req.body;
+    
+    if (!internal_thread_id || !live_version) {
+        return res.status(400).json({ error: "Missing required fields" });
+    }
+    
+    // Push directly to the front-of-line Urgent Queue
+    urgentQueue.push({ internal_thread_id, live_version });
+    console.log(`[URGENT] BFF Triggered Queue Jump for ${internal_thread_id} (v${live_version})`);
+    
+    return res.status(200).json({ success: true, message: "Task injected into Urgent Queue" });
+});
 
 router.post('/webhooks/gmail', (req, res) => {
     // 1. Instantly return 200 OK (Fast Path)
