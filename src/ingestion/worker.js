@@ -1,7 +1,9 @@
 const { backgroundQueue, urgentQueue } = require('./fetchQueue');
-const { statusDb, queuesDb } = require('../config/database');
+const { statusDb, queuesDb, metadataDb } = require('../config/database');
 const { deleteThreadPayload } = require('./dbSync');
 const { runMemoryNode } = require('../nodes/memoryNode');
+const { runClassifierNode } = require('../nodes/classifierNode');
+const { runDrafterNode } = require('../nodes/drafterNode');
 
 async function processQueueTask(workerId) {
     console.log(`[WORKER ${workerId}] Started.`);
@@ -56,10 +58,60 @@ async function processQueueTask(workerId) {
             // 3. Execute Phase 3: The Memory Node
             ueo = await runMemoryNode(ueo);
             
-            // Note: In Phase 4, we will pass 'ueo' to the parallel Fan-Out nodes here.
-            console.log(`[WORKER ${workerId}] Successfully completed Phase 3 for ${internal_thread_id}.`);
+            // 4. Draft Decision Check
+            let shouldDraft = true;
+            let ownerEmail = process.env.OWNER_EMAIL ? process.env.OWNER_EMAIL.replace(/['"]/g, '').trim() : null;
+            
+            if (ueo.has_draft) {
+                console.log(`[WORKER ${workerId}] Skipping Drafter Node: A draft already exists for this thread.`);
+                shouldDraft = false;
+            } else if (ownerEmail && ueo.sender_email === ownerEmail) {
+                console.log(`[WORKER ${workerId}] Skipping Drafter Node: System owner (${ownerEmail}) already replied.`);
+                shouldDraft = false;
+            } else {
+                const automatedRegex = /noreply|no-reply|updates|notifications|newsletter|mailer|do-not-reply|support/i;
+                if (automatedRegex.test(ueo.sender_email)) {
+                    console.log(`[WORKER ${workerId}] Skipping Drafter Node: Sender (${ueo.sender_email}) appears to be automated/promotional.`);
+                    shouldDraft = false;
+                }
+            }
+
+            // 5. Execute Phase 4 (Parallel Fan-Out)
+            await Promise.all([
+                runClassifierNode(ueo),
+                shouldDraft ? runDrafterNode(ueo) : Promise.resolve(ueo)
+            ]);
+            
+            console.log(`\n[WORKER ${workerId}] === FINAL UEO STATE FOR ${internal_thread_id} ===`);
+            console.log(JSON.stringify(ueo, null, 2));
+            console.log(`====================================================\n`);
+            
+            // 6. Phase 5: Resolution & Status Sync (Fan-In)
+            if (ueo.native_draft_id) {
+                metadataDb.prepare(`UPDATE metadata SET native_draft_id = ? WHERE internal_thread_id = ?`)
+                    .run(ueo.native_draft_id, internal_thread_id);
+                console.log(`[WORKER ${workerId}] Persisted native_draft_id: ${ueo.native_draft_id}`);
+            }
+
+            if (ueo.is_spam) {
+                metadataDb.prepare(`UPDATE metadata SET ai_categories = ? WHERE internal_thread_id = ?`)
+                    .run(JSON.stringify(["Spam"]), internal_thread_id);
+                console.log(`[WORKER ${workerId}] Phase 5: Explicitly locked ai_categories to ["Spam"] for native spam.`);
+            }
+
+            statusDb.prepare(`UPDATE status SET status = 'completed' WHERE internal_thread_id = ? AND live_version = ?`)
+                .run(internal_thread_id, live_version);
+            
+            deleteThreadPayload(internal_thread_id, live_version);
+            
+            console.log(`[WORKER ${workerId}] Phase 5 Complete: Status flipped to 'completed' and payload instantly destroyed.`);
+            console.log(`[WORKER ${workerId}] Successfully completed entire pipeline for ${internal_thread_id}.`);
         } catch (e) {
             console.error(`[WORKER ${workerId}] LLM Error on ${internal_thread_id}:`, e);
+            // Explicitly mark as failed and destroy payload to prevent zombie pending states
+            statusDb.prepare(`UPDATE status SET status = 'failed' WHERE internal_thread_id = ? AND live_version = ?`)
+                .run(internal_thread_id, live_version);
+            deleteThreadPayload(internal_thread_id, live_version);
         }
     }
 }

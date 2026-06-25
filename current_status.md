@@ -52,19 +52,28 @@ This document tracks the actual development progress against the finalized maste
 ---
 
 ## Phase 4: The Parallel Generation Engine (Fan-Out)
-**Status: 0% Complete**
+**Status: 100% Complete**
 
-**What Remains:**
-- `[ ]` **Raw Context Fetcher:** Write the logic for the branches to use the `thread_id` to reach back into the Threads DB and fetch the $K$ recent verbatim messages.
-- `[ ]` **Branch A (Drafter):** Integrate RAG (Vector DB) + LLM prompt logic, and write the code to push the output natively via the Gmail API Drafts endpoint.
-- `[ ]` **Branch B (Classifier):** Integrate LLM to generate the 1-sentence preview + category badge, and save it to `summaries.db`.
+**What is completed (Part 1):**
+- `[x]` **The Classifier Node:** Built `src/nodes/classifierNode.js` using LangChain and Zod Structured Outputs (`gpt-5.4-mini`). It perfectly generates the UI summary and an array of AI categories.
+- `[x]` **Classifier RAG Integration:** Added pure local Vector Search to the Classifier so it can accurately tag business inquiries as "Attention".
+- `[x]` **The Summaries DB:** Updated `database.js` to create the `ui_summaries` table.
+- `[x]` **Worker Execution:** The `worker.js` now successfully executes both the Memory Node and the Classifier Node in sequence.
+
+**What is completed (Part 2):**
+- `[x]` **The Zero-Latency Gatekeeper:** Implemented a regex/owner-email check in `worker.js` to abort drafting for automated emails like Reddit, newsletters, etc.
+- `[x]` **The Drafter Node:** Built the RAG-enabled LangChain node using a pure local Vector DB to generate factual reply drafts.
+- `[x]` **Context Optimization (K-Window):** Both Drafter and Classifier natively enforce the `K=3` slice and dynamically append `latest_message` to prevent token bloat while ensuring perfect LLM vision.
+- `[x]` **The Native API Push:** Built `gmailApi.js` to natively push drafted emails straight to the user's Gmail Drafts folder.
+- `[x]` **The Branching Engine:** Wrapped the Classifier Node and Drafter Node in a `Promise.all()` structure in `worker.js` to trigger them simultaneously.
 
 ---
 
 ## Phase 5: Resolution & Status Sync (Fan-In)
-**Status: 0% Complete**
+**Status: 100% Complete**
 
-**What Remains:**
-- `[ ]` **The Completion Barrier:** Write the `Promise.all` or `await` block to ensure both Branch A and Branch B finish successfully.
-- `[ ]` **Final UI Unlock:** Update `status.db` to flip the thread from `pending` to `completed`.
-- `[ ]` **Transient DB Self-Cleaning:** Execute the `DELETE` query against the Threads DB to instantly destroy the heavy text payload, ensuring the system remains ultra-lightweight.
+**What is completed:**
+- `[x]` **The Completion Barrier:** Wrote the `Promise.all` wait block to ensure both Branch A and Branch B finish successfully.
+- `[x]` **Persistent Draft Storage:** Implemented `native_draft_id` capturing in `drafterNode.js` and storage in `metadata.db` to seamlessly link the AI Drafter with the frontend BFF.
+- `[x]` **Final UI Unlock:** Updates `status.db` to flip the thread from `processing` to `completed`.
+- `[x]` **Transient DB Self-Cleaning:** Executes the `DELETE` query against the Threads DB to instantly destroy the heavy text payload, ensuring the system remains ultra-lightweight.

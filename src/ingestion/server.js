@@ -1,7 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const webhookRoutes = require('./routes');
-const { metadataDb } = require('../config/database');
+const { metadataDb, statusDb } = require('../config/database');
 const { performGmailFullSync, performGmailDeltaSync } = require('./adapter');
 const { syncThreadPayload } = require('./dbSync');
 const { backgroundQueue } = require('./fetchQueue');
@@ -39,6 +39,21 @@ function processAndEnqueueResults(results) {
 
 async function startIngestionEngine() {
     console.log("=== INGESTION ENGINE STARTING ===");
+    
+    // Boot Recovery: Recover any pending tasks that were orphaned due to a server crash or stop
+    console.log("[BOOT] Checking for stuck pending tasks in status.db...");
+    const pendingTasks = statusDb.prepare("SELECT internal_thread_id, live_version FROM status WHERE status = 'pending'").all();
+    if (pendingTasks.length > 0) {
+        console.log(`[BOOT] Found ${pendingTasks.length} pending tasks. Pushing them back into the worker queue...`);
+        for (const task of pendingTasks) {
+            backgroundQueue.push({
+                internal_thread_id: task.internal_thread_id,
+                live_version: task.live_version
+            });
+        }
+    } else {
+        console.log("[BOOT] No stuck tasks found. Queue is clean.");
+    }
     
     // Check Case 1A: Empty Database
     const countRow = metadataDb.prepare("SELECT COUNT(*) as count FROM metadata WHERE source = 'gmail'").get();

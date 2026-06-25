@@ -4,11 +4,13 @@ const EmailReplyParser = EmailReplyParserModule.EmailReplyParser || EmailReplyPa
 
 function cleanMessageBody(rawHtmlOrText) {
     if (!rawHtmlOrText) return '';
-    // Strip HTML tags using the library
+    // Strip HTML tags using the library (v10 syntax)
     const plainText = htmlToText(rawHtmlOrText, {
         wordwrap: false,
-        ignoreHref: true,
-        ignoreImage: true
+        selectors: [
+            { selector: 'a', options: { ignoreHref: true } },
+            { selector: 'img', format: 'skip' }
+        ]
     });
     
     // Strip quoted history securely instead of manual regex

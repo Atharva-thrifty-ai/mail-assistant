@@ -59,17 +59,20 @@ Once a valid task is pulled, the worker hands the payload to the **Memory Node**
 ---
 
 ## Phase 4: The Parallel Generation Engine (Fan-Out)
-With the Running Summary updated, the architecture branches into two parallel LLM nodes that execute simultaneously to cut processing time in half. *(Crucial Architecture Detail: While the diagram shows the Memory Node feeding these branches, these Fan-Out nodes cannot rely on the summary alone. They must use the `internal_thread_id` to reach back into the Threads Database to fetch those `K` raw recent messages, ensuring they have perfect verbatim context before drafting or classifying).*
+With the Running Summary updated, the architecture branches into two parallel LLM nodes that execute simultaneously to cut processing time in half. *(Crucial Architecture Detail: While the diagram shows the Memory Node feeding these branches, these Fan-Out nodes cannot rely on the summary alone. They must use the `internal_thread_id` to reach back into the Threads Database to fetch those `K` raw recent messages. To strictly prevent API token bloat, they explicitly slice the history to `K=3`, and append the `latest_message` so the AI is perfectly focused on the newest inquiry).*
 
 ### Branch A: Drafting Response
+*   **The Zero-Latency Gatekeeper:** Before calling the expensive Drafting LLM, the system runs a fast, pure-Javascript check. It aborts the draft instantly if the `From:` header matches the owner's email (meaning we already replied manually), or if it matches an automated regex (like `noreply`, `updates`, `newsletter`). This protects API budgets from spam.
 *   This node generates the actual reply draft for the user to review.
 *   **The RAG Integration:** The node queries an external Vector Database (RAG) to pull factual business context (company policies, calendar rules, past deal terms).
 *   **Why:** Without RAG, the LLM hallucinates. With RAG, the drafted response is factually grounded in your specific business logic. The draft is then pushed back to the respective email API. *(Specifically, the generated drafts are pushed natively via the Gmail API / Microsoft Graph API directly into the user's actual email account so they appear seamlessly in their inbox).*
 
 ### Branch B: Classifier and Summarizer
-*   This node reads the running summary and generates a short, 1-sentence user-facing summary and assigns an AI Category (e.g., "Invoice", "Client Question", "Newsletter").
-*   It writes this directly to the **Summaries SQLite Database**. 
-*   **Why:** The BFF can instantly query this table and display the badges directly on the inbox list view, allowing the user to triage their inbox at a glance.
+*   This node reads the running summary and raw emails to generate a short, 1-sentence user-facing summary and assigns an AI Category (e.g., "Attention", "Work & Professional", "Personal").
+*   **RAG Intelligence:** Just like the Drafter, the Classifier node performs a local Vector Search against `memory_vectors.json`. If a client asks "I want to build a website", the Classifier pulls the business rule about website development and accurately tags the thread with "Attention".
+*   **Structured Outputs:** Because it needs to generate two distinct pieces of data, we explicitly use **OpenAI Structured Outputs** (JSON mode). The LLM is forced to return a perfect JSON object containing two fields: `{ summary: "...", category: "..." }`.
+*   **The Save:** It writes the `summary` string directly to the **Summaries SQLite Database**, and it runs an `UPDATE` query on the **Metadata SQLite Database** to inject the `category` string directly into the metadata row.
+*   **Why:** Using structured outputs guarantees the JSON is perfectly parsable. The BFF can instantly query these tables and display the summary and category badges directly on the inbox list view, allowing the user to triage their inbox at a glance.
 
 ---
 
@@ -77,7 +80,20 @@ With the Running Summary updated, the architecture branches into two parallel LL
 Because Branch A and Branch B are parallel asynchronous tasks, they finish at different times. 
 
 *   **The Completion Mark:** The architecture concludes with a barrier node. It waits for *both* parallel AI tasks to successfully finish their generation.
+*   **The Persistent Draft Storage:** If the Drafter Node successfully created a native draft (e.g., via the Gmail or Microsoft Graph API), it returns a unique Draft ID. Before closing out, the worker executes a fast `UPDATE` to permanently save this `native_draft_id` into the **Metadata SQLite Database**. This elegantly bridges the backend with the BFF, allowing the UI to instantly query if a draft exists without making external API calls.
 *   **The Final Sync:** Once both are done, the Completion Mark sends a final update back to the SQLite Status Database.
 *   It flips the thread's status from `pending/processing` to `completed`.
 *   **The Self-Cleaning Database:** Once the process is fully completed, the massive raw email payload sitting in the transient Threads Database is **permanently deleted**. This ensures the database stays ultra-tiny forever, saving massive amounts of disk space.
 *   **Why:** This is the final signal. When the BFF reads `completed` from the database, it instructs the frontend UI to hide the "loading" spinners and officially unlock the AI tabs for the user.
+
+---
+
+## Architectural Decisions
+
+### Why Standard LangChain over LangGraph?
+While LangGraph is a powerful tool for building stateful, multi-agent AI loops, we explicitly chose **Standard LangChain orchestrated by pure Node.js (`worker.js`)** for this backend. The technical reasons are:
+
+1. **Linear Pipeline vs. Cyclical Agency:** LangGraph is designed for unpredictable, looping agent behavior (e.g., trying a tool, failing, looping back). Our backend is a hyper-fast, perfectly predictable assembly line (`Memory -> Fan-Out -> Draft -> Finish`). We do not want the AI to "think about what to do next"; we want strict, forced progression.
+2. **Maximum Orchestration Speed:** By using pure Javascript (`Promise.all`), we can launch multiple LangChain nodes (Summarizer, Categorizer, Drafter) at the *exact same millisecond* with zero framework overhead. Node.js's native asynchronous I/O allows multiple workers to pause and wait for OpenAI simultaneously without locking up the server.
+3. **API Cost Efficiency:** LangGraph passes a heavy "global state" object to every node, consuming extra tokens just to evaluate conditional routing edges. Our architecture uses pure JavaScript `if/else` statements for routing (e.g., checking if the customer replied), entirely bypassing the LLM for routing and saving massive API costs.
+4. **Simplicity:** If a pipeline breaks, diagnosing pure Javascript asynchronous functions in a single `worker.js` file is vastly easier than tracing state mutations through a complex graph definition.

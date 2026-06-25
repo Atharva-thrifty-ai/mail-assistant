@@ -80,6 +80,9 @@ async function processGmailNotification(historyId) {
                 const rawBody = decodeGmailBody(latestMsgRaw.payload);
                 const latestMessageText = cleanMessageBody(rawBody);
                 
+                // Check if the thread has an existing draft
+                const hasDraft = messages.some(msg => msg.labelIds && msg.labelIds.includes('DRAFT'));
+                
                 // Extract historical messages
                 const historicalMessages = [];
                 for (let i = 0; i < messages.length - 1; i++) {
@@ -107,7 +110,11 @@ async function processGmailNotification(historyId) {
                     snippet: latestMsgRaw.snippet || latestMessageText.substring(0, 100),
                     timestamp: parseInt(latestMsgRaw.internalDate) || Date.now(),
                     has_attachments: !!latestMsgRaw.payload.parts && latestMsgRaw.payload.parts.some(p => p.filename),
-                    is_unread: latestMsgRaw.labelIds && latestMsgRaw.labelIds.includes('UNREAD')
+                    is_unread: latestMsgRaw.labelIds && latestMsgRaw.labelIds.includes('UNREAD'),
+                    is_trash: latestMsgRaw.labelIds && latestMsgRaw.labelIds.includes('TRASH'),
+                    is_sent: latestMsgRaw.labelIds && latestMsgRaw.labelIds.includes('SENT'),
+                    is_starred: latestMsgRaw.labelIds && latestMsgRaw.labelIds.includes('STARRED'),
+                    is_spam: latestMsgRaw.labelIds && latestMsgRaw.labelIds.includes('SPAM')
                 };
 
                 // DB Syncs
@@ -119,7 +126,12 @@ async function processGmailNotification(historyId) {
                     internal_thread_id: internalThreadId,
                     live_version: liveVersion,
                     latest_message: latestMessageText,
-                    historical_thread_messages: historicalMessages
+                    historical_thread_messages: historicalMessages,
+                    source: 'gmail',
+                    provider_thread_id: threadId,
+                    has_draft: hasDraft,
+                    sender_email: cleanedEmail.sender_email,
+                    is_spam: cleanedEmail.is_spam
                 });
                 
                 results.push(ueo);
@@ -177,7 +189,11 @@ async function processGraphNotification(resourceId) {
         internal_thread_id: internalThreadId,
         live_version: liveVersion,
         latest_message: latestMessageText,
-        historical_thread_messages: historicalMessages
+        historical_thread_messages: historicalMessages,
+        source: 'microsoft',
+        provider_thread_id: conversationId,
+        has_draft: false,
+        sender_email: cleanedEmail.sender_email
     });
     
     return [ueo];
@@ -185,7 +201,7 @@ async function processGraphNotification(resourceId) {
 
 async function performGmailFullSync(days = 10) {
     const { token } = await oauth2Client.getAccessToken();
-    const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=newer_than:${days}d`;
+    const url = `https://gmail.googleapis.com/gmail/v1/users/me/messages?q=newer_than:${days}d&includeSpamTrash=true`;
     let response;
     try {
         response = await axios.get(url, { headers: { Authorization: `Bearer ${token}` } });
@@ -223,6 +239,8 @@ async function performGmailFullSync(days = 10) {
             const rawBody = decodeGmailBody(latestMsgRaw.payload);
             const latestMessageText = cleanMessageBody(rawBody);
             
+            const hasDraft = threadMessages.some(msg => msg.labelIds && msg.labelIds.includes('DRAFT'));
+            
             const historicalMessages = [];
             for (let i = 0; i < threadMessages.length - 1; i++) {
                 const mRaw = decodeGmailBody(threadMessages[i].payload);
@@ -247,7 +265,11 @@ async function performGmailFullSync(days = 10) {
                 snippet: latestMsgRaw.snippet || latestMessageText.substring(0, 100),
                 timestamp: parseInt(latestMsgRaw.internalDate) || Date.now(),
                 has_attachments: !!latestMsgRaw.payload.parts && latestMsgRaw.payload.parts.some(p => p.filename),
-                is_unread: latestMsgRaw.labelIds && latestMsgRaw.labelIds.includes('UNREAD')
+                is_unread: latestMsgRaw.labelIds && latestMsgRaw.labelIds.includes('UNREAD'),
+                is_trash: latestMsgRaw.labelIds && latestMsgRaw.labelIds.includes('TRASH'),
+                is_sent: latestMsgRaw.labelIds && latestMsgRaw.labelIds.includes('SENT'),
+                is_starred: latestMsgRaw.labelIds && latestMsgRaw.labelIds.includes('STARRED'),
+                is_spam: latestMsgRaw.labelIds && latestMsgRaw.labelIds.includes('SPAM')
             };
 
             const liveVersion = upsertStatusLock(internalThreadId);
@@ -257,7 +279,12 @@ async function performGmailFullSync(days = 10) {
                 internal_thread_id: internalThreadId,
                 live_version: liveVersion,
                 latest_message: latestMessageText,
-                historical_thread_messages: historicalMessages
+                historical_thread_messages: historicalMessages,
+                source: 'gmail',
+                provider_thread_id: threadId,
+                has_draft: hasDraft,
+                sender_email: cleanedEmail.sender_email,
+                is_spam: cleanedEmail.is_spam
             });
             
             results.push(ueo);

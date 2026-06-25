@@ -43,7 +43,12 @@ metadataDb.exec(`
         timestamp INTEGER NOT NULL,
         ai_categories TEXT,
         has_attachments INTEGER NOT NULL DEFAULT 0,
-        is_unread INTEGER NOT NULL DEFAULT 1
+        is_unread INTEGER NOT NULL DEFAULT 1,
+        native_draft_id TEXT,
+        is_trash INTEGER NOT NULL DEFAULT 0,
+        is_sent INTEGER NOT NULL DEFAULT 0,
+        is_starred INTEGER NOT NULL DEFAULT 0,
+        is_spam INTEGER NOT NULL DEFAULT 0
     )
 `);
 
@@ -62,6 +67,14 @@ queuesDb.exec(`
         live_version INTEGER NOT NULL,
         payload_json TEXT NOT NULL,
         PRIMARY KEY (internal_thread_id, live_version)
+    )
+`);
+
+// Initialize UI Summaries Table (The 1-sentence frontend summary)
+summariesDb.exec(`
+    CREATE TABLE IF NOT EXISTS ui_summaries (
+        internal_thread_id TEXT PRIMARY KEY,
+        ui_summary TEXT NOT NULL
     )
 `);
 

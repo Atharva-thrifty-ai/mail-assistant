@@ -10,3 +10,12 @@ yarn-debug.log*
 yarn-error.log*
 *.pdf
 prompt.md
+
+# Local Vector Databases
+src/config/memory_vectors.json
+
+# Local Environment Variables
+.env.*
+
+# OS Files
+.DS_Store
