@@ -48,7 +48,9 @@ metadataDb.exec(`
         is_trash INTEGER NOT NULL DEFAULT 0,
         is_sent INTEGER NOT NULL DEFAULT 0,
         is_starred INTEGER NOT NULL DEFAULT 0,
-        is_spam INTEGER NOT NULL DEFAULT 0
+        is_spam INTEGER NOT NULL DEFAULT 0,
+        is_draft INTEGER NOT NULL DEFAULT 0,
+        is_inbox INTEGER NOT NULL DEFAULT 0
     )
 `);
 

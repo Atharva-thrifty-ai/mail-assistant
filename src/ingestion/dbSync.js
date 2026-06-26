@@ -20,11 +20,11 @@ function syncUiMetadata(cleanedEmail) {
         INSERT INTO metadata (
             internal_thread_id, source, provider_thread_id, sender_name, sender_email,
             subject, snippet, timestamp, ai_categories, has_attachments, is_unread,
-            is_trash, is_sent, is_starred, is_spam
+            is_trash, is_sent, is_starred, is_spam, is_draft, is_inbox
         ) VALUES (
             @internal_thread_id, @source, @provider_thread_id, @sender_name, @sender_email,
             @subject, @snippet, @timestamp, @ai_categories, @has_attachments, @is_unread,
-            @is_trash, @is_sent, @is_starred, @is_spam
+            @is_trash, @is_sent, @is_starred, @is_spam, @is_draft, @is_inbox
         )
         ON CONFLICT(internal_thread_id) DO UPDATE SET
             sender_name = excluded.sender_name,
@@ -37,7 +37,9 @@ function syncUiMetadata(cleanedEmail) {
             is_trash = excluded.is_trash,
             is_sent = excluded.is_sent,
             is_starred = excluded.is_starred,
-            is_spam = excluded.is_spam
+            is_spam = excluded.is_spam,
+            is_draft = excluded.is_draft,
+            is_inbox = excluded.is_inbox
     `);
     
     stmt.run({
@@ -55,7 +57,9 @@ function syncUiMetadata(cleanedEmail) {
         is_trash: cleanedEmail.is_trash ? 1 : 0,
         is_sent: cleanedEmail.is_sent ? 1 : 0,
         is_starred: cleanedEmail.is_starred ? 1 : 0,
-        is_spam: cleanedEmail.is_spam ? 1 : 0
+        is_spam: cleanedEmail.is_spam ? 1 : 0,
+        is_draft: cleanedEmail.is_draft ? 1 : 0,
+        is_inbox: cleanedEmail.is_inbox ? 1 : 0
     });
 }
 
