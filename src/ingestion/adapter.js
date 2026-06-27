@@ -80,6 +80,13 @@ async function processGmailNotification(historyId) {
                 const rawBody = decodeGmailBody(latestMsgRaw.payload);
                 const latestMessageText = cleanMessageBody(rawBody);
 
+                // Find the latest message that isn't a draft to extract accurate metadata
+                let latestReceivedMsg = messages.slice().reverse().find(msg => !(msg.labelIds && msg.labelIds.includes('DRAFT')));
+                // If all messages are drafts, fall back to the ORIGINAL draft (messages[0]) to get the original Subject and Date
+                if (!latestReceivedMsg) latestReceivedMsg = messages[0];
+                const receivedRawBody = decodeGmailBody(latestReceivedMsg.payload);
+                const receivedMessageText = cleanMessageBody(receivedRawBody);
+
                 // Check if the thread has an existing draft
                 const hasDraft = messages.some(msg => msg.labelIds && msg.labelIds.includes('DRAFT'));
 
@@ -90,8 +97,8 @@ async function processGmailNotification(historyId) {
                     historicalMessages.push(cleanMessageBody(mRaw));
                 }
 
-                // Extract headers
-                const headers = latestMsgRaw.payload.headers || [];
+                // Extract headers from the received message
+                const headers = latestReceivedMsg.payload.headers || [];
                 const getHeader = (name) => {
                     const h = headers.find(h => h.name.toLowerCase() === name.toLowerCase());
                     return h ? h.value : '';
@@ -107,9 +114,9 @@ async function processGmailNotification(historyId) {
                     sender_name: getHeader('From').split('<')[0].trim(),
                     sender_email: (getHeader('From').match(/<(.+)>/) || [])[1] || getHeader('From'),
                     subject: getHeader('Subject'),
-                    snippet: latestMsgRaw.snippet || latestMessageText.substring(0, 100),
-                    timestamp: parseInt(latestMsgRaw.internalDate) || Date.now(),
-                    has_attachments: !!latestMsgRaw.payload.parts && latestMsgRaw.payload.parts.some(p => p.filename),
+                    snippet: latestReceivedMsg.snippet || receivedMessageText.substring(0, 100),
+                    timestamp: parseInt(latestReceivedMsg.internalDate) || Date.now(),
+                    has_attachments: !!latestReceivedMsg.payload.parts && latestReceivedMsg.payload.parts.some(p => p.filename),
                     is_unread: messages.some(msg => msg.labelIds && msg.labelIds.includes('UNREAD')),
                     is_trash: messages.some(msg => msg.labelIds && msg.labelIds.includes('TRASH')),
                     is_sent: messages.some(msg => msg.labelIds && msg.labelIds.includes('SENT')),
@@ -246,6 +253,13 @@ async function performGmailFullSync(days = 10) {
             const rawBody = decodeGmailBody(latestMsgRaw.payload);
             const latestMessageText = cleanMessageBody(rawBody);
 
+            // Find the latest message that isn't a draft to extract accurate metadata
+            let latestReceivedMsg = threadMessages.slice().reverse().find(msg => !(msg.labelIds && msg.labelIds.includes('DRAFT')));
+            // If all messages are drafts, fall back to the ORIGINAL draft (messages[0]) to get the original Subject and Date
+            if (!latestReceivedMsg) latestReceivedMsg = threadMessages[0];
+            const receivedRawBody = decodeGmailBody(latestReceivedMsg.payload);
+            const receivedMessageText = cleanMessageBody(receivedRawBody);
+
             const hasDraft = threadMessages.some(msg => msg.labelIds && msg.labelIds.includes('DRAFT'));
 
             const historicalMessages = [];
@@ -254,7 +268,8 @@ async function performGmailFullSync(days = 10) {
                 historicalMessages.push(cleanMessageBody(mRaw));
             }
 
-            const headers = latestMsgRaw.payload.headers || [];
+            // Extract headers from the received message
+            const headers = latestReceivedMsg.payload.headers || [];
             const getHeader = (name) => {
                 const h = headers.find(h => h.name.toLowerCase() === name.toLowerCase());
                 return h ? h.value : '';
@@ -269,9 +284,9 @@ async function performGmailFullSync(days = 10) {
                 sender_name: getHeader('From').split('<')[0].trim(),
                 sender_email: (getHeader('From').match(/<(.+)>/) || [])[1] || getHeader('From'),
                 subject: getHeader('Subject'),
-                snippet: latestMsgRaw.snippet || latestMessageText.substring(0, 100),
-                timestamp: parseInt(latestMsgRaw.internalDate) || Date.now(),
-                has_attachments: !!latestMsgRaw.payload.parts && latestMsgRaw.payload.parts.some(p => p.filename),
+                snippet: latestReceivedMsg.snippet || receivedMessageText.substring(0, 100),
+                timestamp: parseInt(latestReceivedMsg.internalDate) || Date.now(),
+                has_attachments: !!latestReceivedMsg.payload.parts && latestReceivedMsg.payload.parts.some(p => p.filename),
                 is_unread: threadMessages.some(msg => msg.labelIds && msg.labelIds.includes('UNREAD')),
                 is_trash: threadMessages.some(msg => msg.labelIds && msg.labelIds.includes('TRASH')),
                 is_sent: threadMessages.some(msg => msg.labelIds && msg.labelIds.includes('SENT')),
