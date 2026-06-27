@@ -4,6 +4,7 @@ const { deleteThreadPayload } = require('./dbSync');
 const { runMemoryNode } = require('../nodes/memoryNode');
 const { runClassifierNode } = require('../nodes/classifierNode');
 const { runDrafterNode } = require('../nodes/drafterNode');
+const { rebuildPayloadForWorker } = require('./adapter');
 
 async function processQueueTask(workerId) {
     console.log(`[WORKER ${workerId}] Started.`);
@@ -47,13 +48,23 @@ async function processQueueTask(workerId) {
             // 1. Lazy-load the massive payload from the transient disk
             const payloadRow = queuesDb.prepare("SELECT payload_json FROM threads WHERE internal_thread_id = ? AND live_version = ?").get(internal_thread_id, live_version);
             
+            let ueo;
             if (!payloadRow) {
-                console.error(`[WORKER ${workerId}] FATAL: Payload missing in DB for ${internal_thread_id} v${live_version}`);
-                continue;
+                console.warn(`[WORKER ${workerId}] Payload missing in DB for ${internal_thread_id} v${live_version}. Attempting self-healing rebuild...`);
+                try {
+                    ueo = await rebuildPayloadForWorker(internal_thread_id, live_version);
+                    console.log(`[WORKER ${workerId}] Successfully rebuilt payload from provider API.`);
+                } catch (rebuildErr) {
+                    console.error(`[WORKER ${workerId}] FATAL: Rebuild failed:`, rebuildErr);
+                    // Force the status to failed to prevent eternal pending
+                    statusDb.prepare(`UPDATE status SET status = 'failed' WHERE internal_thread_id = ? AND live_version = ?`)
+                        .run(internal_thread_id, live_version);
+                    continue;
+                }
+            } else {
+                // 2. Parse back into a fast JavaScript object
+                ueo = JSON.parse(payloadRow.payload_json);
             }
-            
-            // 2. Parse back into a fast JavaScript object
-            let ueo = JSON.parse(payloadRow.payload_json);
             
             // 3. Execute Phase 3: The Memory Node
             ueo = await runMemoryNode(ueo);
@@ -88,7 +99,7 @@ async function processQueueTask(workerId) {
             
             // 6. Phase 5: Resolution & Status Sync (Fan-In)
             if (ueo.native_draft_id) {
-                metadataDb.prepare(`UPDATE metadata SET native_draft_id = ? WHERE internal_thread_id = ?`)
+                metadataDb.prepare(`UPDATE metadata SET native_draft_id = ?, is_draft = 1 WHERE internal_thread_id = ?`)
                     .run(ueo.native_draft_id, internal_thread_id);
                 console.log(`[WORKER ${workerId}] Persisted native_draft_id: ${ueo.native_draft_id}`);
             }

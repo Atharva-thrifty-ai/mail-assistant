@@ -126,6 +126,18 @@ async function processGmailNotification(historyId) {
                     is_inbox: messages.some(msg => msg.labelIds && msg.labelIds.includes('INBOX'))
                 };
 
+                // Identify if this ping is purely because a Draft was generated.
+                // A Draft ping will have the newest message as a Draft.
+                const isDraftPing = latestMsgRaw.labelIds && latestMsgRaw.labelIds.includes('DRAFT');
+
+                // If this is just a draft ping from our worker, we completely ignore it.
+                // We do NOT want to bump the live_version, otherwise we will sabotage the worker 
+                // trying to mark the current live_version as 'completed'.
+                if (isDraftPing) {
+                    console.log(`[DELTA SYNC] Completely ignored Draft Ping for ${internalThreadId} to avoid race conditions.`);
+                    continue;
+                }
+
                 // DB Syncs
                 const liveVersion = upsertStatusLock(internalThreadId);
                 syncUiMetadata(cleanedEmail);
@@ -337,10 +349,59 @@ async function performGmailDeltaSync() {
     return results;
 }
 
+async function rebuildPayloadForWorker(internalThreadId, liveVersion) {
+    const [source, providerThreadId] = internalThreadId.split('_');
+    
+    if (source === 'gmail') {
+        const threadData = await fetchGmailThread(providerThreadId);
+        const messages = threadData.messages || [];
+        if (messages.length === 0) throw new Error("No messages found");
+        
+        const latestMsgRaw = messages[messages.length - 1];
+        const rawBody = decodeGmailBody(latestMsgRaw.payload);
+        const latestMessageText = cleanMessageBody(rawBody);
+
+        const hasDraft = messages.some(msg => msg.labelIds && msg.labelIds.includes('DRAFT'));
+
+        let latestReceivedMsg = messages.slice().reverse().find(msg => !(msg.labelIds && msg.labelIds.includes('DRAFT')));
+        if (!latestReceivedMsg) latestReceivedMsg = messages[0];
+        
+        const historicalMessages = [];
+        for (let i = 0; i < messages.length - 1; i++) {
+            const mRaw = decodeGmailBody(messages[i].payload);
+            historicalMessages.push(cleanMessageBody(mRaw));
+        }
+
+        const headers = latestReceivedMsg.payload.headers || [];
+        const getHeader = (name) => {
+            const h = headers.find(h => h.name.toLowerCase() === name.toLowerCase());
+            return h ? h.value : '';
+        };
+
+        const sender_email = (getHeader('From').match(/<(.+)>/) || [])[1] || getHeader('From');
+        const is_spam = messages.some(msg => msg.labelIds && msg.labelIds.includes('SPAM'));
+
+        return new UniversalEmailObject({
+            internal_thread_id: internalThreadId,
+            live_version: liveVersion,
+            latest_message: latestMessageText,
+            historical_thread_messages: historicalMessages,
+            source: 'gmail',
+            provider_thread_id: providerThreadId,
+            has_draft: hasDraft,
+            sender_email: sender_email,
+            is_spam: is_spam
+        });
+    } else {
+        throw new Error("Microsoft/Unknown rebuild not implemented yet");
+    }
+}
+
 module.exports = {
     processGmailNotification,
     processGraphNotification,
     performGmailFullSync,
     performGmailDeltaSync,
+    rebuildPayloadForWorker,
     oauth2Client
 };

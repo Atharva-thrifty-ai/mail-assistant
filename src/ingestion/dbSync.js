@@ -1,18 +1,30 @@
 const { statusDb, metadataDb, queuesDb } = require('../config/database');
 
-function upsertStatusLock(internalThreadId) {
-    const stmt = statusDb.prepare(`
-        INSERT INTO status (internal_thread_id, status, live_version)
-        VALUES (?, 'pending', 1)
-        ON CONFLICT(internal_thread_id) DO UPDATE SET
-            live_version = live_version + 1,
-            status = 'pending'
-        RETURNING live_version
-    `);
-    
-    // Using run().lastInsertRowid or .get() with RETURNING clause ensures atomic access
-    const result = stmt.get(internalThreadId);
-    return result.live_version;
+function upsertStatusLock(internalThreadId, isDraftPing = false) {
+    if (isDraftPing) {
+        // If it's a draft ping, we just increment the live_version to invalidate old tasks,
+        // but we do NOT reset the status to pending. If it doesn't exist, assume completed.
+        const stmt = statusDb.prepare(`
+            INSERT INTO status (internal_thread_id, status, live_version)
+            VALUES (?, 'completed', 1)
+            ON CONFLICT(internal_thread_id) DO UPDATE SET
+                live_version = live_version + 1
+            RETURNING live_version
+        `);
+        const result = stmt.get(internalThreadId);
+        return result.live_version;
+    } else {
+        const stmt = statusDb.prepare(`
+            INSERT INTO status (internal_thread_id, status, live_version)
+            VALUES (?, 'pending', 1)
+            ON CONFLICT(internal_thread_id) DO UPDATE SET
+                live_version = live_version + 1,
+                status = 'pending'
+            RETURNING live_version
+        `);
+        const result = stmt.get(internalThreadId);
+        return result.live_version;
+    }
 }
 
 function syncUiMetadata(cleanedEmail) {
