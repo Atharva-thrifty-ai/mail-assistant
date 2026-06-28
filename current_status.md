@@ -4,6 +4,14 @@ This document tracks the actual development progress against the finalized maste
 
 ---
 
+## Global Architecture Improvements
+**Status: Complete**
+- `[✅]` **Centralized Persistent Logging:** Replaced ephemeral `console.log` statements with a global `winston` logger. All logs are now written to `logs/application.log` and `logs/error.log` with standardized timestamps. Added Express request logging middleware to the BFF.
+- `[✅]` **Server Port Separation:** Isolated the Ingestion Server (`INGESTION_PORT=3000`) from the BFF UI Server (`PORT=5000`) in `.env` to fix inter-process `fetch` collisions.
+- `[✅]` **Batch Crash Resilience:** Wrapped the `adapter.js` Delta Sync loop in a `try/catch` to ensure malformed emails do not abort batch processing, fixing the "ghost pending" database strand bug.
+
+---
+
 ## Phase 1: Ingestion & Initial State Dispatch
 **Status: 100% Complete**
 

@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const { ChatOpenAI, OpenAIEmbeddings } = require("@langchain/openai");
 const { PromptTemplate } = require("@langchain/core/prompts");
 const fs = require('fs');
@@ -14,7 +15,7 @@ function cosineSimilarity(vecA, vecB) {
 }
 
 async function runDrafterNode(ueo) {
-    console.log(`[DRAFTER NODE] Analyzing thread ${ueo.internal_thread_id}...`);
+    logger.info(`[DRAFTER NODE] Analyzing thread ${ueo.internal_thread_id}...`);
 
     try {
         // 1. Prepare context for search
@@ -49,7 +50,7 @@ async function runDrafterNode(ueo) {
             const topChunks = scoredChunks.slice(0, 2);
             
             ragContext = topChunks.map(c => c.text).join("\n\n");
-            console.log(`[DRAFTER NODE] Retrieved ${topChunks.length} relevant business rules via RAG.`);
+            logger.info(`[DRAFTER NODE] Retrieved ${topChunks.length} relevant business rules via RAG.`);
         }
 
         // 3. Draft the Reply
@@ -92,11 +93,11 @@ Do NOT include Subject lines or "To/From" headers. Just the raw email text.
         const draftText = result.content;
         
         if (draftText.trim() === 'SKIP') {
-            console.log(`[DRAFTER NODE] AI determined no reply is needed. Skipping draft creation.`);
+            logger.info(`[DRAFTER NODE] AI determined no reply is needed. Skipping draft creation.`);
             return ueo;
         }
 
-        console.log(`[DRAFTER NODE] Generated Draft:\n${draftText}\n`);
+        logger.info(`[DRAFTER NODE] Generated Draft:\n${draftText}\n`);
 
         // 4. Provider-Agnostic API Push
         if (ueo.provider_thread_id) {
@@ -106,10 +107,10 @@ Do NOT include Subject lines or "To/From" headers. Just the raw email text.
                     ueo.native_draft_id = draftResponse.id;
                 }
             } else if (ueo.source === 'microsoft') {
-                console.log(`[DRAFTER NODE] Microsoft API not yet implemented. Skipping push.`);
+                logger.info(`[DRAFTER NODE] Microsoft API not yet implemented. Skipping push.`);
             }
         } else {
-            console.log(`[DRAFTER NODE] No provider_thread_id found (likely a test). Skipping native API push.`);
+            logger.info(`[DRAFTER NODE] No provider_thread_id found (likely a test). Skipping native API push.`);
         }
 
         // 5. Attach to UEO
@@ -117,7 +118,7 @@ Do NOT include Subject lines or "To/From" headers. Just the raw email text.
         return ueo;
 
     } catch (e) {
-        console.error(`[DRAFTER NODE] Error processing thread ${ueo.internal_thread_id}:`, e);
+        logger.error(`[DRAFTER NODE] Error processing thread ${ueo.internal_thread_id}:`, e);
         return ueo;
     }
 }

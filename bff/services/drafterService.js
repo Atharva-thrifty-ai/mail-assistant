@@ -1,3 +1,4 @@
+const logger = require('../../src/utils/logger');
 const { ChatOpenAI, OpenAIEmbeddings } = require("@langchain/openai");
 const { PromptTemplate } = require("@langchain/core/prompts");
 const fs = require('fs');
@@ -101,7 +102,7 @@ Do NOT include Subject lines or "To/From" headers. Just the raw email text.
             metadataDb.prepare("UPDATE metadata SET native_draft_id = ?, is_draft = 1 WHERE internal_thread_id = ?").run(draftResponse.id, internal_thread_id);
         }
     } else if (source === 'microsoft') {
-        console.log(`[BFF DRAFTER] Microsoft API paused. Skipping push for thread ${internal_thread_id}`);
+        logger.info(`[BFF DRAFTER] Microsoft API paused. Skipping push for thread ${internal_thread_id}`);
         metadataDb.prepare("UPDATE metadata SET is_draft = 1 WHERE internal_thread_id = ?").run(internal_thread_id);
     }
 }
@@ -234,7 +235,7 @@ Do NOT include Subject lines or headers. Just the raw email text.
             }
         }
     } else if (metadataRow.source === 'microsoft') {
-        console.log(`[BFF DRAFTER] Microsoft API paused. Skipping redraft push for thread ${internal_thread_id}`);
+        logger.info(`[BFF DRAFTER] Microsoft API paused. Skipping redraft push for thread ${internal_thread_id}`);
     }
 }
 

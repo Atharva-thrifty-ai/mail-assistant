@@ -18,3 +18,15 @@ The Problem: The background worker successfully calls the AI to generate a draft
 
 Possible Fixes:
 Update the worker's Phase 5 database query to explicitly set `is_draft = 1` alongside the `native_draft_id`.
+
+4. The Disorganized Ephemeral Console Logs
+The Problem: The entire backend previously relied on scattered `console.log()` statements. When bugs occurred (like UI hangs or ghost pending statuses), it was extremely difficult to trace the execution flow because logs were lost on terminal restarts and lacked timestamps or severity levels.
+The Fix: Implemented a robust `winston` logging utility (`src/utils/logger.js`). All backend components (Pure Backend and BFF) now use `logger.info`, `logger.warn`, and `logger.error`. Logs are permanently persisted to disk (`logs/application.log` and `logs/error.log`), allowing for precise historical debugging. The BFF was also upgraded with custom request-logging middleware.
+
+5. The Ghost Pending Batch Crash (Transactional Failure)
+The Problem: When the `performGmailDeltaSync` CRON woke up to process a batch of new emails, it would sequentially update the database to `pending` and push emails to a temporary array. However, if a specific email in the middle of the batch was malformed (e.g., causing a null reference in `decodeGmailBody`), the function threw a fatal `[CRON ERROR]`. The function aborted before enqueuing the batch, leaving all successfully processed preceding emails permanently stranded in `pending` without ever reaching the worker.
+The Fix: Wrapped the inner `for` loop logic inside `performGmailDeltaSync` with a `try/catch` block. If a malformed email crashes the parser, the system now safely logs the error for that specific thread and continues processing the rest of the batch, ensuring successful emails are safely enqueued to the background worker.
+
+6. The Port Collision & Queue Jump Crash
+The Problem: Both the UI BFF (`bff/app.js`) and the Ingestion Server (`src/ingestion/server.js`) were reading their port from `process.env.PORT || 3000`. Since `.env` globally defined `PORT=5000`, both servers booted on Port 5000. When the BFF's Extractor Service tried to trigger an urgent queue jump via `fetch('http://localhost:3000/api/internal/urgent')`, it failed silently because the ingestion server was actually on 5000. This broke the urgent prioritization loop.
+The Fix: Added `INGESTION_PORT=3000` to `.env`. Updated `src/ingestion/server.js` to specifically use `process.env.INGESTION_PORT || 3000`. This separated the two servers, allowing the BFF to successfully make inter-process API requests to the Ingestion server.

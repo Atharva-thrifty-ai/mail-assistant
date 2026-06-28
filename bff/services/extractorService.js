@@ -1,3 +1,4 @@
+const logger = require('../../src/utils/logger');
 const { google } = require('googleapis');
 const { statusDb, metadataDb } = require('../../src/config/database');
 
@@ -17,7 +18,7 @@ async function extractThreadHistory(internal_thread_id) {
 
     // 2. Urgent Queue Jump (Fire and Forget)
     if (statusRow.status === 'pending') {
-        console.log(`[EXTRACTOR] Thread ${internal_thread_id} is pending. Triggering Urgent Queue Jump...`);
+        logger.info(`[EXTRACTOR] Thread ${internal_thread_id} is pending. Triggering Urgent Queue Jump...`);
         // We use native fetch (available in Node 18+) to hit the ingestion server's urgent API
         try {
             fetch('http://localhost:3000/api/internal/urgent', {
@@ -27,7 +28,7 @@ async function extractThreadHistory(internal_thread_id) {
                     internal_thread_id: internal_thread_id,
                     live_version: statusRow.live_version
                 })
-            }).catch(e => console.error("[EXTRACTOR] Urgent queue jump fetch failed:", e.message));
+            }).catch(e => logger.error("[EXTRACTOR] Urgent queue jump fetch failed:", e.message));
         } catch(e) {} 
     }
 
@@ -48,13 +49,15 @@ async function extractThreadHistory(internal_thread_id) {
     const messages = response.data.messages || [];
     const cleanMessages = [];
     let isLastMessageSent = false;
+    let draftHtml = null;
 
     // 4 & 5. Draft Stripping and HTML Extraction
     for (const msg of messages) {
         // STRIP THE DRAFT: If the message contains the DRAFT label, skip it!
         const isMsgDraft = msg.labelIds && msg.labelIds.includes('DRAFT');
         if (metadataRow.is_draft === 1 && isMsgDraft) {
-            console.log(`[EXTRACTOR] Stripped draft message ${msg.id} from reading view.`);
+            logger.info(`[EXTRACTOR] Captured draft message ${msg.id} for inline UI view.`);
+            draftHtml = extractHtmlBody(msg.payload);
             continue; // Skip pushing this to the cleanMessages array
         }
 
@@ -88,7 +91,8 @@ async function extractThreadHistory(internal_thread_id) {
     // Return the universal object so the frontend knows exactly what to render
     return {
         messages: cleanMessages,
-        hideDraftButton: isLastMessageSent
+        hideDraftButton: isLastMessageSent,
+        draft: draftHtml
     };
 }
 

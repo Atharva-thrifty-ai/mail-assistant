@@ -19,3 +19,7 @@ src/config/memory_vectors.json
 
 # OS Files
 .DS_Store
+
+# Logs
+logs/
+*.log

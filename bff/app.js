@@ -1,4 +1,5 @@
 require('dotenv').config();
+const logger = require('../src/utils/logger');
 const express = require('express');
 const cors = require('cors');
 const inboxRoutes = require('./routes/inbox');
@@ -19,6 +20,16 @@ const PORT = process.env.PORT || 5000;
 app.use(cors()); // Allow requests from our future React frontend
 app.use(express.json()); // Parse incoming JSON bodies
 
+// API Request Logger Middleware
+app.use((req, res, next) => {
+    const start = Date.now();
+    res.on('finish', () => {
+        const ms = Date.now() - start;
+        logger.info(`[BFF] ${req.method} ${req.originalUrl} ${res.statusCode} - ${ms}ms`);
+    });
+    next();
+});
+
 // Routes
 app.get('/api/', (req, res) => {
     res.redirect('/api/inbox');
@@ -37,8 +48,8 @@ app.use('/api/compose', composeRoutes);
 
 // Start Server
 app.listen(PORT, () => {
-    console.log(`=========================================`);
-    console.log(`[BFF SERVER] Express running on port ${PORT}`);
-    console.log(`[BFF SERVER] Test endpoint: http://localhost:${PORT}/api/inbox`);
-    console.log(`=========================================`);
+    logger.info(`=========================================`);
+    logger.info(`[BFF SERVER] Express running on port ${PORT}`);
+    logger.info(`[BFF SERVER] Test endpoint: http://localhost:${PORT}/api/inbox`);
+    logger.info(`=========================================`);
 });

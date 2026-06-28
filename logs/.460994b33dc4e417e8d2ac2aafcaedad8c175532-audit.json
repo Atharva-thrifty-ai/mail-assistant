@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 14
+    },
+    "auditLog": "D:\\ai intern thrifty\\Mail  assistant system\\logs\\.460994b33dc4e417e8d2ac2aafcaedad8c175532-audit.json",
+    "files": [
+        {
+            "date": 1782640205318,
+            "name": "D:\\ai intern thrifty\\Mail  assistant system\\logs\\application-2026-06-28.log",
+            "hash": "7c7151294545daa1bcab226346e2b62a38d44e0f773fdddc83d147830886f6a6"
+        }
+    ],
+    "hashType": "sha256"
+}

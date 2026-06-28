@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const { google } = require('googleapis');
 
 // Construct raw RFC 2822 email format required by the Gmail API
@@ -29,7 +30,7 @@ async function createGmailDraft(provider_thread_id, draftText) {
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
     try {
-        console.log(`[GMAIL API] Pushing draft to provider thread: ${provider_thread_id}...`);
+        logger.info(`[GMAIL API] Pushing draft to provider thread: ${provider_thread_id}...`);
         
         // Construct the RFC 2822 email. 
         // By passing threadId in the API request body below, Gmail automatically assigns the correct To/From/Subject!
@@ -45,10 +46,10 @@ async function createGmailDraft(provider_thread_id, draftText) {
             }
         });
 
-        console.log(`[GMAIL API] Successfully created native Draft! Draft ID: ${response.data.id}`);
+        logger.info(`[GMAIL API] Successfully created native Draft! Draft ID: ${response.data.id}`);
         return response.data;
     } catch (error) {
-        console.error(`[GMAIL API ERROR] Failed to create draft:`, error.message);
+        logger.error(`[GMAIL API ERROR] Failed to create draft:`, error.message);
         return null;
     }
 }
@@ -59,7 +60,7 @@ async function updateGmailDraft(draftId, provider_thread_id, draftText) {
     const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
     try {
-        console.log(`[GMAIL API] Updating draft ${draftId}...`);
+        logger.info(`[GMAIL API] Updating draft ${draftId}...`);
         const rawMessage = makeRawEmail('', '', '', draftText);
         const response = await gmail.users.drafts.update({
             userId: 'me',
@@ -68,10 +69,10 @@ async function updateGmailDraft(draftId, provider_thread_id, draftText) {
                 message: { raw: rawMessage, threadId: provider_thread_id }
             }
         });
-        console.log(`[GMAIL API] Successfully updated native Draft!`);
+        logger.info(`[GMAIL API] Successfully updated native Draft!`);
         return response.data;
     } catch (error) {
-        console.error(`[GMAIL API ERROR] Failed to update draft:`, error.message);
+        logger.error(`[GMAIL API ERROR] Failed to update draft:`, error.message);
         return null;
     }
 }
@@ -96,7 +97,7 @@ async function getGmailDraftText(draftId) {
         }
         return body || response.data.message.snippet;
     } catch (error) {
-        console.error(`[GMAIL API ERROR] Failed to get draft:`, error.message);
+        logger.error(`[GMAIL API ERROR] Failed to get draft:`, error.message);
         return null;
     }
 }
@@ -124,7 +125,7 @@ async function getGmailThreadDrafts(provider_thread_id) {
         }
         return null;
     } catch (error) {
-        console.error(`[GMAIL API ERROR] Failed to get thread drafts:`, error.message);
+        logger.error(`[GMAIL API ERROR] Failed to get thread drafts:`, error.message);
         return null;
     }
 }

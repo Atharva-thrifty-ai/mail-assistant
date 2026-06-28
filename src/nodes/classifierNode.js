@@ -1,3 +1,4 @@
+const logger = require('../utils/logger');
 const { ChatOpenAI, OpenAIEmbeddings } = require('@langchain/openai');
 const fs = require('fs');
 const path = require('path');
@@ -57,7 +58,7 @@ INSTRUCTIONS:
 
 async function runClassifierNode(ueo) {
     const internalThreadId = ueo.internal_thread_id;
-    console.log(`[CLASSIFIER NODE] Analyzing thread ${internalThreadId}...`);
+    logger.info(`[CLASSIFIER NODE] Analyzing thread ${internalThreadId}...`);
 
     // 1. Build the prompt text
     const runningSummary = ueo.running_summary || "No previous summary.";
@@ -90,7 +91,7 @@ async function runClassifierNode(ueo) {
         scoredChunks.sort((a, b) => b.score - a.score);
         const topChunks = scoredChunks.slice(0, 2);
         ragContext = topChunks.map(c => c.text).join("\n\n");
-        console.log(`[CLASSIFIER NODE] Retrieved ${topChunks.length} relevant business rules via RAG.`);
+        logger.info(`[CLASSIFIER NODE] Retrieved ${topChunks.length} relevant business rules via RAG.`);
     }
 
     // 3. Execute the Chain (returns a perfect JSON object matching our Zod schema)
@@ -102,7 +103,7 @@ async function runClassifierNode(ueo) {
         recent_messages: recentMessagesText
     });
 
-    console.log(`[CLASSIFIER NODE] Generated: ${JSON.stringify(structuredResult)}`);
+    logger.info(`[CLASSIFIER NODE] Generated: ${JSON.stringify(structuredResult)}`);
 
     // 3. Save the Summary to summariesDb
     const summaryStmt = summariesDb.prepare(`
@@ -117,7 +118,7 @@ async function runClassifierNode(ueo) {
     if (!ueo.is_spam) {
         // AI Spam Flagging: If AI detects spam, permanently flag it as spam in the DB
         if (structuredResult.categories && structuredResult.categories.includes("Spam")) {
-            console.log(`[CLASSIFIER NODE] AI flagged thread as Spam. Updating is_spam = 1.`);
+            logger.info(`[CLASSIFIER NODE] AI flagged thread as Spam. Updating is_spam = 1.`);
             metadataDb.prepare(`UPDATE metadata SET is_spam = 1 WHERE internal_thread_id = ?`)
                 .run(internalThreadId);
         }
@@ -129,10 +130,10 @@ async function runClassifierNode(ueo) {
         `);
         metadataStmt.run(JSON.stringify(structuredResult.categories), internalThreadId);
     } else {
-        console.log(`[CLASSIFIER NODE] Thread is native SPAM. Skipping ai_categories update.`);
+        logger.info(`[CLASSIFIER NODE] Thread is native SPAM. Skipping ai_categories update.`);
     }
 
-    console.log(`[CLASSIFIER NODE] Successfully updated databases for ${internalThreadId}.`);
+    logger.info(`[CLASSIFIER NODE] Successfully updated databases for ${internalThreadId}.`);
 
     return ueo;
 }

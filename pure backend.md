@@ -97,3 +97,20 @@ While LangGraph is a powerful tool for building stateful, multi-agent AI loops, 
 2. **Maximum Orchestration Speed:** By using pure Javascript (`Promise.all`), we can launch multiple LangChain nodes (Summarizer, Categorizer, Drafter) at the *exact same millisecond* with zero framework overhead. Node.js's native asynchronous I/O allows multiple workers to pause and wait for OpenAI simultaneously without locking up the server.
 3. **API Cost Efficiency:** LangGraph passes a heavy "global state" object to every node, consuming extra tokens just to evaluate conditional routing edges. Our architecture uses pure JavaScript `if/else` statements for routing (e.g., checking if the customer replied), entirely bypassing the LLM for routing and saving massive API costs.
 4. **Simplicity:** If a pipeline breaks, diagnosing pure Javascript asynchronous functions in a single `worker.js` file is vastly easier than tracing state mutations through a complex graph definition.
+
+---
+
+## Post-Launch Stability Fixes
+
+As the system transitioned to production, several stability and architectural adjustments were made to ensure perfect reliability:
+
+### 1. Global Persistent Logging
+Replaced all ephemeral `console.log()` statements across the entire backend with the robust `winston` logging utility. Logs are now standardized with timestamps and permanently persisted to `logs/application.log` and `logs/error.log`. This guarantees that if a race condition or crash occurs, the exact sequence of events is securely recorded for historical debugging.
+
+### 2. Transactional Resilience (The Batch Crash Fix)
+The `performGmailDeltaSync` CRON processes emails in batches. Initially, a single malformed email (e.g., an inline attachment with no parsable text) would throw a fatal error, aborting the entire batch. This resulted in successfully parsed preceding emails becoming stranded in a "ghost pending" state in `status.db` without ever reaching the worker queue. 
+**The Fix:** The core loop inside `adapter.js` was wrapped in a `try/catch` block. If an individual email crashes the parser, the system logs the failure and safely `continue`s to the next email, mathematically guaranteeing that the rest of the batch is perfectly enqueued.
+
+### 3. Server Port Separation
+Both the Ingestion Server and the UI BFF Server initially booted on `process.env.PORT || 3000`, leading to a collision where both listened on Port 5000 (from `.env`). This silently broke the Urgent Queue Jump feature because the BFF's `fetch` request was hitting the wrong port.
+**The Fix:** Added an explicit `INGESTION_PORT=3000` to `.env` to physically separate the two servers, allowing seamless and secure inter-process communication between the UI and the Pure Backend.

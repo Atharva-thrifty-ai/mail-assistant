@@ -1,3 +1,4 @@
+const logger = require('../../src/utils/logger');
 const { statusDb, summariesDb } = require('../../src/config/database');
 
 /**

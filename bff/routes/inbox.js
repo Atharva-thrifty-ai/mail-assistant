@@ -1,3 +1,4 @@
+const logger = require('../../src/utils/logger');
 const express = require('express');
 const router = express.Router();
 const { metadataDb, statusDb } = require('../../src/config/database');
@@ -31,7 +32,7 @@ router.get('/', (req, res) => {
 
         res.json(enrichedThreads);
     } catch (error) {
-        console.error('[BFF API ERROR] Failed to fetch folder:', error);
+        logger.error('[BFF API ERROR] Failed to fetch folder:', error);
         res.status(500).json({ error: 'Internal Server Error' });
     }
 });
@@ -43,7 +44,7 @@ router.get('/:thread_id/extractor', async (req, res) => {
         const extractorData = await extractThreadHistory(thread_id);
         res.json(extractorData);
     } catch (error) {
-        console.error('[BFF API ERROR] Extractor failed:', error.message);
+        logger.error('[BFF API ERROR] Extractor failed:', error.message);
         res.status(500).json({ error: error.message });
     }
 });
@@ -55,7 +56,7 @@ router.get('/:thread_id/summary', (req, res) => {
         const summaryData = getSummary(thread_id);
         res.json(summaryData);
     } catch (error) {
-        console.error('[BFF API ERROR] Summarizer failed:', error.message);
+        logger.error('[BFF API ERROR] Summarizer failed:', error.message);
         res.status(500).json({ error: error.message });
     }
 });

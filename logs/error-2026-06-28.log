@@ -1,0 +1,59 @@
+2026-06-28 15:21:04 error: [CRON ERROR]
+2026-06-28 15:26:23 error: [EXTRACTOR] Urgent queue jump fetch failed:
+2026-06-28 15:26:24 error: [EXTRACTOR] Urgent queue jump fetch failed:
+2026-06-28 15:26:44 error: [EXTRACTOR] Urgent queue jump fetch failed:
+2026-06-28 15:26:45 error: [EXTRACTOR] Urgent queue jump fetch failed:
+2026-06-28 15:26:59 error: [EXTRACTOR] Urgent queue jump fetch failed:
+2026-06-28 15:26:59 error: [EXTRACTOR] Urgent queue jump fetch failed:
+2026-06-28 15:27:11 error: [EXTRACTOR] Urgent queue jump fetch failed:
+2026-06-28 15:27:16 error: [EXTRACTOR] Urgent queue jump fetch failed:
+2026-06-28 15:27:17 error: [EXTRACTOR] Urgent queue jump fetch failed:
+2026-06-28 15:27:36 error: [EXTRACTOR] Urgent queue jump fetch failed:
+2026-06-28 16:01:42 error: AxiosError: Request failed with status code 404
+    at settle (D:\ai intern thrifty\Mail  assistant system\node_modules\axios\dist\node\axios.cjs:2216:12)
+    at Unzip.handleStreamEnd (D:\ai intern thrifty\Mail  assistant system\node_modules\axios\dist\node\axios.cjs:4062:11)
+    at Unzip.emit (node:events:509:28)
+    at endReadableNT (node:internal/streams/readable:1735:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+    at Axios.request (D:\ai intern thrifty\Mail  assistant system\node_modules\axios\dist\node\axios.cjs:5517:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async fetchGmailThread (D:\ai intern thrifty\Mail  assistant system\src\ingestion\adapter.js:24:22)
+    at async processGmailNotification (D:\ai intern thrifty\Mail  assistant system\src\ingestion\adapter.js:76:40)
+    at async performGmailDeltaSync (D:\ai intern thrifty\Mail  assistant system\src\ingestion\adapter.js:348:21)
+    at async Timeout._onTimeout (D:\ai intern thrifty\Mail  assistant system\src\ingestion\server.js:76:29)
+2026-06-28 16:06:35 error: AxiosError: Request failed with status code 404
+    at settle (D:\ai intern thrifty\Mail  assistant system\node_modules\axios\dist\node\axios.cjs:2216:12)
+    at Unzip.handleStreamEnd (D:\ai intern thrifty\Mail  assistant system\node_modules\axios\dist\node\axios.cjs:4062:11)
+    at Unzip.emit (node:events:509:28)
+    at endReadableNT (node:internal/streams/readable:1735:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+    at Axios.request (D:\ai intern thrifty\Mail  assistant system\node_modules\axios\dist\node\axios.cjs:5517:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async fetchGmailThread (D:\ai intern thrifty\Mail  assistant system\src\ingestion\adapter.js:24:22)
+    at async processGmailNotification (D:\ai intern thrifty\Mail  assistant system\src\ingestion\adapter.js:76:40)
+    at async performGmailDeltaSync (D:\ai intern thrifty\Mail  assistant system\src\ingestion\adapter.js:348:21)
+    at async Timeout._onTimeout (D:\ai intern thrifty\Mail  assistant system\src\ingestion\server.js:76:29)
+2026-06-28 16:57:45 error: AxiosError: Request failed with status code 404
+    at settle (D:\ai intern thrifty\Mail  assistant system\node_modules\axios\dist\node\axios.cjs:2216:12)
+    at Unzip.handleStreamEnd (D:\ai intern thrifty\Mail  assistant system\node_modules\axios\dist\node\axios.cjs:4062:11)
+    at Unzip.emit (node:events:509:28)
+    at endReadableNT (node:internal/streams/readable:1735:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+    at Axios.request (D:\ai intern thrifty\Mail  assistant system\node_modules\axios\dist\node\axios.cjs:5517:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async fetchGmailThread (D:\ai intern thrifty\Mail  assistant system\src\ingestion\adapter.js:24:22)
+    at async processGmailNotification (D:\ai intern thrifty\Mail  assistant system\src\ingestion\adapter.js:76:40)
+    at async performGmailDeltaSync (D:\ai intern thrifty\Mail  assistant system\src\ingestion\adapter.js:348:21)
+    at async Timeout._onTimeout (D:\ai intern thrifty\Mail  assistant system\src\ingestion\server.js:76:29)
+2026-06-28 17:12:42 error: AxiosError: Request failed with status code 404
+    at settle (D:\ai intern thrifty\Mail  assistant system\node_modules\axios\dist\node\axios.cjs:2216:12)
+    at Unzip.handleStreamEnd (D:\ai intern thrifty\Mail  assistant system\node_modules\axios\dist\node\axios.cjs:4062:11)
+    at Unzip.emit (node:events:509:28)
+    at endReadableNT (node:internal/streams/readable:1735:12)
+    at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+    at Axios.request (D:\ai intern thrifty\Mail  assistant system\node_modules\axios\dist\node\axios.cjs:5517:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async fetchGmailThread (D:\ai intern thrifty\Mail  assistant system\src\ingestion\adapter.js:24:22)
+    at async processGmailNotification (D:\ai intern thrifty\Mail  assistant system\src\ingestion\adapter.js:76:40)
+    at async performGmailDeltaSync (D:\ai intern thrifty\Mail  assistant system\src\ingestion\adapter.js:348:21)
+    at async Timeout._onTimeout (D:\ai intern thrifty\Mail  assistant system\src\ingestion\server.js:76:29)

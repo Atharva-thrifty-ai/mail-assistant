@@ -5,7 +5,7 @@ const Sidebar = ({ activeFolder, onFolderChange }) => {
     { id: 'inbox', label: 'Inbox', icon: '📥' },
     { id: 'starred', label: 'Starred', icon: '⭐' },
     { id: 'sent', label: 'Sent', icon: '📤' },
-    { id: 'drafts', label: 'Drafts', icon: '📝', phase: 5 },
+    { id: 'drafts', label: 'Drafts', icon: '📝' },
     { id: 'trash', label: 'Trash', icon: '🗑️' }
   ];
 

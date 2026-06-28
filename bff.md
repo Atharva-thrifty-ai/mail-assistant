@@ -121,3 +121,16 @@ When a user clicks an email from a specific folder (e.g., `/inbox` or `/attentio
 
 
 ## Implmentation of the trash and the forward buttons too
+
+---
+
+## Post-Launch Stability Fixes
+
+As the system transitioned to production, several stability adjustments were made to ensure the BFF remained blazing fast and perfectly synced with the Pure Backend:
+
+### 1. Global Request Logging Middleware
+Replaced all ephemeral `console.log()` statements with the robust `winston` logging utility. A dedicated request-logging middleware was injected into the Express pipeline, automatically timing and persisting every single API call (e.g., `[BFF] GET /api/inbox/gmail_... 200 - 450ms`) to `logs/application.log`. This provides a permanent, auditable trail of UI latency and behavior.
+
+### 2. Urgent Queue Jump Restoration
+The BFF's crucial ability to jump the queue (`fetch('http://localhost:3000/api/internal/urgent')`) was failing silently because the Ingestion Server was actually booting on Port 5000 (colliding with the BFF's port). 
+**The Fix:** Separated the architecture by adding `INGESTION_PORT=3000` to `.env`. This allowed the BFF to successfully reach the Ingestion Server via inter-process API requests, fully restoring the zero-latency priority queue.
