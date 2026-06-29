@@ -39,6 +39,7 @@ const ReadingView = ({ email, folder, onTriggerMaintenance }) => {
   const [showDraftBox, setShowDraftBox] = useState(false);
   const [draftText, setDraftText] = useState('');
   const [isDrafting, setIsDrafting] = useState(false);
+  const [redraftInstruction, setRedraftInstruction] = useState('');
 
   const draftBoxRef = useRef(null);
 
@@ -124,6 +125,63 @@ const ReadingView = ({ email, folder, onTriggerMaintenance }) => {
       eventSource.close();
       setIsDrafting(false);
     };
+  };
+
+  const handleRedraft = async () => {
+    if (!redraftInstruction.trim() || !draftText.trim()) return;
+    
+    const earlierDraft = draftText;
+    const currentInstruction = redraftInstruction; // Capture before clearing
+    setRedraftInstruction(''); // Wipe out immediately
+    setDraftText(''); // Clear to prepare for stream
+    setIsDrafting(true);
+
+    try {
+      const response = await fetch(`http://localhost:5000/api/${folder}/${email.internal_thread_id}/redraft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ user_comments: currentInstruction, earlier_draft: earlierDraft })
+      });
+
+      if (!response.ok) throw new Error('Network response was not ok');
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop(); // keep incomplete chunk
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6);
+            if (dataStr === '[DONE]') {
+              setIsDrafting(false);
+              return;
+            }
+            try {
+              const parsed = JSON.parse(dataStr);
+              if (parsed.token && parsed.token !== '[SSE_WAITING]') {
+                setDraftText((prev) => prev + parsed.token);
+              } else if (parsed.error) {
+                console.error(parsed.error);
+                setIsDrafting(false);
+              }
+            } catch (err) {
+              console.error('Error parsing SSE', err);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Redraft Error', err);
+      setIsDrafting(false);
+    }
   };
 
   const getCategoryBadge = (categories) => {
@@ -234,8 +292,34 @@ const ReadingView = ({ email, folder, onTriggerMaintenance }) => {
               ✨ AI Draft
               {isDrafting && <div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }}></div>}
             </span>
-            <button onClick={() => setShowDraftBox(false)} style={{ color: 'var(--text-secondary)' }}>✕</button>
+            <button onMouseDown={(e) => e.stopPropagation()} onClick={() => setShowDraftBox(false)} style={{ color: 'var(--text-secondary)' }}>✕</button>
           </div>
+
+          <input 
+            onMouseDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && redraftInstruction.trim() && !isDrafting) {
+                e.preventDefault();
+                handleRedraft();
+              }
+            }}
+            type="text" 
+            placeholder="Instructions for redrafting..." 
+            value={redraftInstruction}
+            onChange={(e) => setRedraftInstruction(e.target.value)}
+            disabled={isDrafting}
+            style={{
+              width: '100%',
+              marginBottom: '1rem',
+              background: 'rgba(0,0,0,0.2)',
+              border: '1px solid var(--panel-border)',
+              borderRadius: '8px',
+              padding: '0.75rem 1rem',
+              color: 'var(--text-primary)',
+              outline: 'none',
+            }}
+          />
+
           <textarea
             value={draftText}
             onChange={(e) => setDraftText(e.target.value)}
@@ -252,11 +336,16 @@ const ReadingView = ({ email, folder, onTriggerMaintenance }) => {
               lineHeight: '1.5'
             }}
           />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }}>
-            <button className="btn-primary" style={{ background: 'transparent', border: '1px solid var(--panel-border)' }}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }} onMouseDown={(e) => e.stopPropagation()}>
+            <button 
+              className="btn-primary" 
+              style={{ background: 'transparent', border: '1px solid var(--panel-border)', opacity: (isDrafting || !redraftInstruction.trim()) ? 0.5 : 1 }}
+              onClick={handleRedraft}
+              disabled={isDrafting || !redraftInstruction.trim()}
+            >
               Redraft
             </button>
-            <button className="btn-primary">
+            <button className="btn-primary" disabled={isDrafting}>
               Send
             </button>
           </div>

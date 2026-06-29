@@ -9821,3 +9821,21 @@ Best regards,
 2026-06-28 18:17:42 info: [DELTA SYNC] Up to date. No missed threads.
 2026-06-28 18:17:57 info: [DELTA SYNC] Catching up from historyId: 210382...
 2026-06-28 18:17:57 info: [DELTA SYNC] Up to date. No missed threads.
+2026-06-28 18:18:12 info: [DELTA SYNC] Catching up from historyId: 210382...
+2026-06-28 18:18:12 info: [DELTA SYNC] Up to date. No missed threads.
+2026-06-28 18:18:27 info: [DELTA SYNC] Catching up from historyId: 210382...
+2026-06-28 18:18:27 info: [DELTA SYNC] Up to date. No missed threads.
+2026-06-28 18:18:42 info: [DELTA SYNC] Catching up from historyId: 210382...
+2026-06-28 18:18:42 info: [DELTA SYNC] Up to date. No missed threads.
+2026-06-28 18:18:52 info: [BFF] GET /api/sent 304 - 1ms
+2026-06-28 18:18:53 info: [BFF] GET /api/sent/gmail_19f0c885f3363640/extractor 200 - 472ms
+2026-06-28 18:18:54 info: [BFF] GET /api/drafts 304 - 2ms
+2026-06-28 18:18:55 info: [EXTRACTOR] Captured draft message 19f0e09cc2ae5bc4 for inline UI view.
+2026-06-28 18:18:55 info: [BFF] GET /api/drafts/gmail_19f08f07237eea1b/extractor 304 - 414ms
+2026-06-28 18:18:56 info: [EXTRACTOR] Captured draft message 19f0e09cc2ae5bc4 for inline UI view.
+2026-06-28 18:18:56 info: [BFF] GET /api/drafts/gmail_19f08f07237eea1b/extractor 304 - 403ms
+2026-06-28 18:18:57 info: [DELTA SYNC] Catching up from historyId: 210382...
+2026-06-28 18:18:57 info: [DELTA SYNC] Up to date. No missed threads.
+2026-06-28 18:18:59 info: [BFF] GET /api/drafts/gmail_19f08f07237eea1b/summary 200 - 1ms
+2026-06-28 18:19:12 info: [DELTA SYNC] Catching up from historyId: 210382...
+2026-06-28 18:19:12 info: [DELTA SYNC] Up to date. No missed threads.
