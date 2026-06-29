@@ -1,6 +1,6 @@
 import React from 'react';
 
-const InboxList = ({ folder, emails, onSelectEmail, selectedId, onTriggerMaintenance }) => {
+const InboxList = ({ folder, emails, onSelectEmail, selectedId, onTriggerMaintenance, onRefresh }) => {
   if (!emails || emails.length === 0) {
     return (
       <div className="glass-panel" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
@@ -74,6 +74,7 @@ const InboxList = ({ folder, emails, onSelectEmail, selectedId, onTriggerMainten
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                     {formatDate(email.date)}
                   </span>
+                  {email.is_starred === 1 && <span style={{ fontSize: '0.75rem' }}>⭐</span>}
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: getCategoryColor(email.ai_categories) }}></div>
                 </div>
               </div>
@@ -105,8 +106,23 @@ const InboxList = ({ folder, emails, onSelectEmail, selectedId, onTriggerMainten
                 }}
                 onClick={(e) => e.stopPropagation()} // Prevent opening email
               >
-                <button onClick={() => onTriggerMaintenance('Star Action')} style={{ padding: '0.25rem', color: 'var(--text-secondary)' }}>⭐</button>
-                <button onClick={() => onTriggerMaintenance('Delete/Trash Action')} style={{ padding: '0.25rem', color: 'var(--text-secondary)' }}>🗑️</button>
+                <button onClick={(e) => {
+                  e.stopPropagation();
+                  fetch(`http://localhost:5000/api/${folder}/${email.internal_thread_id}/${email.is_starred === 1 ? 'unstar' : 'star'}`, { method: 'POST' }).then(() => onRefresh && onRefresh());
+                }} title={email.is_starred === 1 ? 'Unstar' : 'Star'} style={{ padding: '0.25rem', color: 'var(--text-secondary)' }}>
+                  {email.is_starred === 1 ? '⭐' : '☆'}
+                </button>
+                {folder === 'trash' ? (
+                  <button onClick={(e) => {
+                    e.stopPropagation();
+                    fetch(`http://localhost:5000/api/${folder}/${email.internal_thread_id}/untrash`, { method: 'POST' }).then(() => onRefresh && onRefresh());
+                  }} title="Restore" style={{ padding: '0.25rem', color: 'var(--text-secondary)' }}>♻️</button>
+                ) : (
+                  <button onClick={(e) => {
+                    e.stopPropagation();
+                    fetch(`http://localhost:5000/api/${folder}/${email.internal_thread_id}/trash`, { method: 'POST' }).then(() => onRefresh && onRefresh());
+                  }} title="Delete" style={{ padding: '0.25rem', color: 'var(--text-secondary)' }}>🗑️</button>
+                )}
                 <button onClick={() => onTriggerMaintenance('Forward Action')} style={{ padding: '0.25rem', color: 'var(--text-secondary)' }}>↪️</button>
               </div>
             </div>

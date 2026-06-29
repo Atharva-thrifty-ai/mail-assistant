@@ -1,3 +1,4 @@
+const { starThread, unstarThread, trashThread, untrashThread } = require('../controllers/actionController');
 const express = require('express');
 const router = express.Router();
 const { metadataDb, statusDb } = require('../../src/config/database');
@@ -8,9 +9,9 @@ const { getSummary } = require('../services/summarizerService');
 router.get('/', (req, res) => {
     try {
         const stmt = metadataDb.prepare(`
-            SELECT internal_thread_id, sender_name, sender_email, subject, timestamp as date, snippet, ai_categories, is_draft
+            SELECT internal_thread_id, sender_name, sender_email, subject, timestamp as date, snippet, ai_categories, is_draft, is_starred, is_trash
             FROM metadata
-            WHERE is_sent = 1
+            WHERE is_sent = 1 AND is_trash = 0
             ORDER BY timestamp DESC
         `);
         const threads = stmt.all();
@@ -58,5 +59,12 @@ router.get('/:thread_id/summary', (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
+
+
+// Action Routes
+router.post('/:thread_id/star', starThread);
+router.post('/:thread_id/unstar', unstarThread);
+router.post('/:thread_id/trash', trashThread);
+router.post('/:thread_id/untrash', untrashThread);
 
 module.exports = router;

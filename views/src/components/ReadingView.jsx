@@ -31,7 +31,7 @@ const ShadowEmail = ({ content }) => {
   return <div ref={containerRef} />;
 };
 
-const ReadingView = ({ email, folder, onTriggerMaintenance }) => {
+const ReadingView = ({ email, folder, onTriggerMaintenance, onRefresh }) => {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState(null);
@@ -40,6 +40,7 @@ const ReadingView = ({ email, folder, onTriggerMaintenance }) => {
   const [draftText, setDraftText] = useState('');
   const [isDrafting, setIsDrafting] = useState(false);
   const [redraftInstruction, setRedraftInstruction] = useState('');
+  const [isStarred, setIsStarred] = useState(email?.is_starred === 1);
   
   const [showSendConfirmation, setShowSendConfirmation] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -82,7 +83,38 @@ const ReadingView = ({ email, folder, onTriggerMaintenance }) => {
 
   useEffect(() => {
     fetchThread();
+    setIsStarred(email?.is_starred === 1);
   }, [email, folder]);
+
+  const handleToggleStar = async () => {
+    const action = isStarred ? 'unstar' : 'star';
+    setIsStarred(!isStarred);
+    try {
+      await fetch(`http://localhost:5000/api/${folder}/${email.internal_thread_id}/${action}`, { method: 'POST' });
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.error(err);
+      setIsStarred(isStarred); // revert on error
+    }
+  };
+
+  const handleTrash = async () => {
+    try {
+      await fetch(`http://localhost:5000/api/${folder}/${email.internal_thread_id}/trash`, { method: 'POST' });
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleUntrash = async () => {
+    try {
+      await fetch(`http://localhost:5000/api/${folder}/${email.internal_thread_id}/untrash`, { method: 'POST' });
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const handleSummarise = async () => {
     setShowSummary(!showSummary);
@@ -263,8 +295,14 @@ const ReadingView = ({ email, folder, onTriggerMaintenance }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
           {getCategoryBadge(email.ai_categories)}
           <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button onClick={() => onTriggerMaintenance('Star Action')} title="Star" style={{ fontSize: '1.2rem', opacity: 0.7 }}>⭐</button>
-            <button onClick={() => onTriggerMaintenance('Delete/Trash Action')} title="Delete" style={{ fontSize: '1.2rem', opacity: 0.7 }}>🗑️</button>
+            <button onClick={handleToggleStar} title={isStarred ? "Unstar" : "Star"} style={{ fontSize: '1.2rem', opacity: isStarred ? 1 : 0.7 }}>
+              {isStarred ? '⭐' : '☆'}
+            </button>
+            {folder === 'trash' ? (
+              <button onClick={handleUntrash} title="Restore" style={{ fontSize: '1.2rem', opacity: 0.7 }}>♻️</button>
+            ) : (
+              <button onClick={handleTrash} title="Delete" style={{ fontSize: '1.2rem', opacity: 0.7 }}>🗑️</button>
+            )}
           </div>
         </div>
       </div>

@@ -177,4 +177,65 @@ async function sendGmailDraft(draftId) {
     }
 }
 
-module.exports = { createGmailDraft, updateGmailDraft, getGmailDraftText, getGmailThreadDrafts, sendGmailDraft };
+async function modifyGmailThreadLabels(threadId, addLabelIds = [], removeLabelIds = []) {
+    const oauth2Client = new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
+    oauth2Client.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+    try {
+        const response = await gmail.users.threads.modify({
+            userId: 'me',
+            id: threadId,
+            requestBody: {
+                addLabelIds: addLabelIds,
+                removeLabelIds: removeLabelIds
+            }
+        });
+        logger.info(`[GMAIL API] Successfully modified labels for thread: ${threadId}`);
+        return response.data;
+    } catch (error) {
+        const exactError = error.response?.data?.error?.message || error.message;
+        logger.error(`[GMAIL API ERROR] Failed to modify labels for thread ${threadId}: ${exactError}`);
+        return null;
+    }
+}
+
+async function trashGmailThread(threadId) {
+    const oauth2Client = new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
+    oauth2Client.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+    try {
+        const response = await gmail.users.threads.trash({
+            userId: 'me',
+            id: threadId
+        });
+        logger.info(`[GMAIL API] Successfully trashed thread: ${threadId}`);
+        return response.data;
+    } catch (error) {
+        const exactError = error.response?.data?.error?.message || error.message;
+        logger.error(`[GMAIL API ERROR] Failed to trash thread ${threadId}: ${exactError}`);
+        return null;
+    }
+}
+
+async function untrashGmailThread(threadId) {
+    const oauth2Client = new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
+    oauth2Client.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+    try {
+        const response = await gmail.users.threads.untrash({
+            userId: 'me',
+            id: threadId
+        });
+        logger.info(`[GMAIL API] Successfully untrashed thread: ${threadId}`);
+        return response.data;
+    } catch (error) {
+        const exactError = error.response?.data?.error?.message || error.message;
+        logger.error(`[GMAIL API ERROR] Failed to untrash thread ${threadId}: ${exactError}`);
+        return null;
+    }
+}
+
+module.exports = { createGmailDraft, updateGmailDraft, getGmailDraftText, getGmailThreadDrafts, sendGmailDraft, modifyGmailThreadLabels, trashGmailThread, untrashGmailThread };

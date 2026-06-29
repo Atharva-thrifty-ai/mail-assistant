@@ -13,27 +13,30 @@ function App() {
   const [maintenanceToast, setMaintenanceToast] = useState(null);
 
   // Fetch emails when folder changes
-  useEffect(() => {
-    // If it's a future phase folder (like drafts = phase 5, or compose = phase 7), don't fetch
+  const loadEmails = async (preserveSelection = false) => {
     if (activePhase && activePhase > 4) {
       setEmails([]);
       setSelectedEmail(null);
       return;
     }
+    const data = await api.fetchFolder(activeFolder);
+    setEmails(data);
+    if (!preserveSelection) {
+      setSelectedEmail(null);
+    } else if (selectedEmail) {
+      // Re-select if it still exists in the new data
+      const stillExists = data.find(e => e.internal_thread_id === selectedEmail.internal_thread_id);
+      setSelectedEmail(stillExists || null);
+    }
+  };
 
-    const loadEmails = async () => {
-      const data = await api.fetchFolder(activeFolder);
-      setEmails(data);
-      setSelectedEmail(null); // Reset selection on folder change
-    };
-
-    loadEmails();
+  useEffect(() => {
+    loadEmails(false);
   }, [activeFolder, activePhase]);
 
   const handleFolderChange = (folderId, phase = 4) => {
     setActiveFolder(folderId);
     setActivePhase(phase);
-    // Drafts (phase 5) or Compose (phase 7) will trigger the placeholder via activePhase > 4
   };
 
   const triggerMaintenance = (featureName) => {
@@ -57,6 +60,7 @@ function App() {
             onSelectEmail={setSelectedEmail} 
             selectedId={selectedEmail?.internal_thread_id}
             onTriggerMaintenance={triggerMaintenance}
+            onRefresh={() => loadEmails(true)}
           />
           
           {selectedEmail ? (
@@ -65,6 +69,7 @@ function App() {
               email={selectedEmail} 
               folder={activeFolder} 
               onTriggerMaintenance={triggerMaintenance}
+              onRefresh={() => loadEmails(true)}
             />
           ) : (
             <div className="glass-panel" style={{ flex: 1.5, display: 'flex', justifyContent: 'center', alignItems: 'center', color: 'var(--text-secondary)' }}>

@@ -1,3 +1,4 @@
+const { starThread, unstarThread, trashThread, untrashThread } = require('../controllers/actionController');
 const logger = require('../../src/utils/logger');
 const express = require('express');
 const { sendDraft } = require('../services/senderService');
@@ -12,9 +13,9 @@ const { getDraftStream, redraftStream } = require('../services/drafterService');
 router.get('/', (req, res) => {
     try {
         const stmt = metadataDb.prepare(`
-            SELECT internal_thread_id, sender_name, sender_email, subject, timestamp as date, snippet, ai_categories, is_draft
+            SELECT internal_thread_id, sender_name, sender_email, subject, timestamp as date, snippet, ai_categories, is_draft, is_starred, is_trash
             FROM metadata
-            WHERE is_draft = 1
+            WHERE is_draft = 1 AND is_trash = 0
             ORDER BY timestamp DESC
         `);
         const threads = stmt.all();
@@ -115,5 +116,12 @@ router.post('/:thread_id/send', async (req, res) => {
         res.status(500).json({ error: error.message || 'Internal Server Error' });
     }
 });
+
+
+// Action Routes
+router.post('/:thread_id/star', starThread);
+router.post('/:thread_id/unstar', unstarThread);
+router.post('/:thread_id/trash', trashThread);
+router.post('/:thread_id/untrash', untrashThread);
 
 module.exports = router;

@@ -1,3 +1,4 @@
+const { starThread, unstarThread, trashThread, untrashThread } = require('../controllers/actionController');
 const express = require('express');
 const router = express.Router();
 const { metadataDb, statusDb } = require('../../src/config/database');
@@ -9,9 +10,9 @@ const { getDraftStream, redraftStream } = require('../services/drafterService');
 router.get('/', (req, res) => {
     try {
         const stmt = metadataDb.prepare(`
-            SELECT internal_thread_id, sender_name, sender_email, subject, timestamp as date, snippet, ai_categories, is_draft
+            SELECT internal_thread_id, sender_name, sender_email, subject, timestamp as date, snippet, ai_categories, is_draft, is_starred, is_trash
             FROM metadata
-            WHERE is_starred = 1
+            WHERE is_starred = 1 AND is_trash = 0
             ORDER BY timestamp DESC
         `);
         const threads = stmt.all();
@@ -99,5 +100,12 @@ router.post('/:thread_id/redraft', async (req, res) => {
         res.end();
     }
 });
+
+
+// Action Routes
+router.post('/:thread_id/star', starThread);
+router.post('/:thread_id/unstar', unstarThread);
+router.post('/:thread_id/trash', trashThread);
+router.post('/:thread_id/untrash', untrashThread);
 
 module.exports = router;
