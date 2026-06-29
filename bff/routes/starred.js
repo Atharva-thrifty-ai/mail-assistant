@@ -1,3 +1,4 @@
+const { forwardDraftStream, forwardSend } = require('../controllers/composeController');
 const { starThread, unstarThread, trashThread, untrashThread } = require('../controllers/actionController');
 const express = require('express');
 const router = express.Router();
@@ -108,4 +109,7 @@ router.post('/:thread_id/unstar', unstarThread);
 router.post('/:thread_id/trash', trashThread);
 router.post('/:thread_id/untrash', untrashThread);
 
+
+router.post('/:thread_id/forward/draft', forwardDraftStream);
+router.post('/:thread_id/forward/send', forwardSend);
 module.exports = router;

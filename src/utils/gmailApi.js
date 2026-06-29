@@ -66,6 +66,47 @@ async function createGmailDraft(provider_thread_id, draftText) {
     }
 }
 
+async function createComposeDraft(to, subject, draftText, threadId = null) {
+    const oauth2Client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET
+    );
+
+    oauth2Client.setCredentials({
+        refresh_token: process.env.GMAIL_REFRESH_TOKEN
+    });
+
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+
+    try {
+        logger.info(`[GMAIL API] Pushing Compose draft (to: ${to})...`);
+        
+        const rawMessage = makeRawEmail(to, 'me', subject, draftText);
+
+        const requestBody = {
+            message: {
+                raw: rawMessage
+            }
+        };
+
+        if (threadId) {
+            requestBody.message.threadId = threadId; // For Forwarding
+        }
+
+        const response = await gmail.users.drafts.create({
+            userId: 'me',
+            requestBody
+        });
+
+        logger.info(`[GMAIL API] Successfully created Compose Draft! Draft ID: ${response.data.id}`);
+        return response.data;
+    } catch (error) {
+        const exactError = error.response?.data?.error?.message || error.message;
+        logger.error(`[GMAIL API ERROR] Failed to create Compose draft:`, exactError);
+        return null;
+    }
+}
+
 async function updateGmailDraft(draftId, provider_thread_id, draftText) {
     const oauth2Client = new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
     oauth2Client.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
@@ -238,4 +279,4 @@ async function untrashGmailThread(threadId) {
     }
 }
 
-module.exports = { createGmailDraft, updateGmailDraft, getGmailDraftText, getGmailThreadDrafts, sendGmailDraft, modifyGmailThreadLabels, trashGmailThread, untrashGmailThread };
+module.exports = { createGmailDraft, createComposeDraft, updateGmailDraft, getGmailDraftText, getGmailThreadDrafts, sendGmailDraft, modifyGmailThreadLabels, trashGmailThread, untrashGmailThread };

@@ -46,6 +46,14 @@ const ReadingView = ({ email, folder, onTriggerMaintenance, onRefresh }) => {
   const [isSending, setIsSending] = useState(false);
   const [sendSuccess, setSendSuccess] = useState(false);
 
+  // Forward State
+  const [showForwardBox, setShowForwardBox] = useState(false);
+  const [forwardText, setForwardText] = useState('');
+  const [forwardTo, setForwardTo] = useState('');
+  const [forwardInstruction, setForwardInstruction] = useState('');
+  const [isForwardDrafting, setIsForwardDrafting] = useState(false);
+  const [showForwardConfirmation, setShowForwardConfirmation] = useState(false);
+
   const draftBoxRef = useRef(null);
 
   // Auto-scroll to draft box when it opens
@@ -164,59 +172,134 @@ const ReadingView = ({ email, folder, onTriggerMaintenance, onRefresh }) => {
   };
 
   const handleRedraft = async () => {
-    if (!redraftInstruction.trim() || !draftText.trim()) return;
+    if (!redraftInstruction.trim()) return;
     
-    const earlierDraft = draftText;
-    const currentInstruction = redraftInstruction; // Capture before clearing
-    setRedraftInstruction(''); // Wipe out immediately
-    setDraftText(''); // Clear to prepare for stream
     setIsDrafting(true);
+    setDraftText('');
 
     try {
       const response = await fetch(`http://localhost:5000/api/${folder}/${email.internal_thread_id}/redraft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_comments: currentInstruction, earlier_draft: earlierDraft })
+        body: JSON.stringify({ instruction: redraftInstruction, draftText })
       });
 
-      if (!response.ok) throw new Error('Network response was not ok');
-
       const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-
+      const decoder = new TextDecoder('utf-8');
+      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split('\n\n');
-        buffer = lines.pop(); // keep incomplete chunk
-
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
         for (const line of lines) {
           if (line.startsWith('data: ')) {
             const dataStr = line.slice(6);
-            if (dataStr === '[DONE]') {
-              setIsDrafting(false);
-              return;
-            }
+            if (dataStr === '[DONE]') break;
+            if (dataStr === '[SSE_WAITING]') continue;
             try {
-              const parsed = JSON.parse(dataStr);
-              if (parsed.token && parsed.token !== '[SSE_WAITING]') {
-                setDraftText((prev) => prev + parsed.token);
-              } else if (parsed.error) {
-                console.error(parsed.error);
-                setIsDrafting(false);
+              const data = JSON.parse(dataStr);
+              if (data.text) {
+                setDraftText(prev => prev + data.text);
               }
-            } catch (err) {
-              console.error('Error parsing SSE', err);
+            } catch (e) {
+              console.error("Error parsing JSON chunk", e);
             }
           }
         }
       }
-    } catch (err) {
-      console.error('Redraft Error', err);
+    } catch (error) {
+      console.error("Failed to redraft", error);
+    } finally {
       setIsDrafting(false);
+    }
+  };
+
+  const handleForward = () => {
+    setShowForwardBox(true);
+    const originalText = history.length > 0 
+      ? history.map(m => `From: ${m.sender || m.from}\nDate: ${new Date(m.timestamp || m.date || email.date).toLocaleString()}\n\n${m.body || m.snippet}`).join('\n\n')
+      : email.snippet;
+    
+    setForwardText(`\n\n---------- Forwarded message ---------\n${originalText}`);
+  };
+
+  const handleForwardDraft = async () => {
+    if (!forwardInstruction.trim()) return;
+    
+    setIsForwardDrafting(true);
+    
+    try {
+      const response = await fetch(`http://localhost:5000/api/${folder}/${email.internal_thread_id}/forward/draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instructions: forwardInstruction })
+      });
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let aiIntro = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const dataStr = line.slice(6);
+            if (dataStr === '[DONE]') break;
+            try {
+              const data = JSON.parse(dataStr);
+              if (data.text) {
+                aiIntro += data.text;
+                // Prepend AI intro to the original forwarded text
+                setForwardText(aiIntro + `\n\n---------- Forwarded message ---------\n` + (history.length > 0 
+                  ? history.map(m => `From: ${m.sender || m.from}\nDate: ${new Date(m.timestamp || m.date || email.date).toLocaleString()}\n\n${m.body || m.snippet}`).join('\n\n')
+                  : email.snippet));
+              }
+            } catch (e) {
+              console.error("Error parsing JSON chunk", e);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Failed to generate forward draft", error);
+    } finally {
+      setIsForwardDrafting(false);
+    }
+  };
+
+  const executeForward = async () => {
+    setIsSending(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/${folder}/${email.internal_thread_id}/forward/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ to: forwardTo, draftText: forwardText })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSendSuccess(true);
+        setTimeout(() => {
+          setShowForwardConfirmation(false);
+          setShowForwardBox(false);
+          setSendSuccess(false);
+          if (onRefresh) onRefresh();
+        }, 2000);
+      } else {
+        alert("Failed to forward.");
+      }
+    } catch (error) {
+      console.error(error);
+      alert("Error forwarding.");
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -335,7 +418,7 @@ const ReadingView = ({ email, folder, onTriggerMaintenance, onRefresh }) => {
       </div>
 
       {/* Footer Actions (Pinned to bottom) */}
-      {!showDraftBox && (
+      {!showDraftBox && !showForwardBox && (
         <div style={{ padding: '1.5rem', borderTop: '1px solid var(--panel-border)', display: 'flex', gap: '1rem', background: 'rgba(0,0,0,0.2)' }}>
           <button
             className="btn-primary"
@@ -347,7 +430,7 @@ const ReadingView = ({ email, folder, onTriggerMaintenance, onRefresh }) => {
           <button
             className="btn-primary"
             style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--panel-bg)', border: '1px solid var(--panel-border)' }}
-            onClick={() => onTriggerMaintenance('Forward Action')}
+            onClick={handleForward}
           >
             ↪️ Forward
           </button>
@@ -421,6 +504,96 @@ const ReadingView = ({ email, folder, onTriggerMaintenance, onRefresh }) => {
               disabled={isDrafting}
             >
               Send
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Inline Forward Box (Pinned to bottom) */}
+      {showForwardBox && (
+        <div style={{ padding: '1.5rem', borderTop: '1px solid rgba(99, 102, 241, 0.4)', background: 'rgba(0,0,0,0.2)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <span style={{ fontWeight: '600', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              ↪️ Forward
+              {isForwardDrafting && <div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }}></div>}
+            </span>
+            <button onMouseDown={(e) => e.stopPropagation()} onClick={() => setShowForwardBox(false)} style={{ color: 'var(--text-secondary)' }}>✕</button>
+          </div>
+
+          <input 
+            type="email" 
+            placeholder="To" 
+            value={forwardTo}
+            onChange={(e) => setForwardTo(e.target.value)}
+            style={{
+              width: '100%',
+              marginBottom: '1rem',
+              background: 'rgba(0,0,0,0.2)',
+              border: '1px solid var(--panel-border)',
+              borderRadius: '8px',
+              padding: '0.75rem 1rem',
+              color: 'var(--text-primary)',
+              outline: 'none',
+            }}
+          />
+
+          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+            <input 
+              onMouseDown={(e) => e.stopPropagation()}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && forwardInstruction.trim() && !isForwardDrafting) {
+                  e.preventDefault();
+                  handleForwardDraft();
+                }
+              }}
+              type="text" 
+              placeholder="AI Instructions (e.g. Write a brief intro asking them to review this)" 
+              value={forwardInstruction}
+              onChange={(e) => setForwardInstruction(e.target.value)}
+              disabled={isForwardDrafting}
+              style={{
+                flex: 1,
+                background: 'rgba(0,0,0,0.2)',
+                border: '1px solid var(--panel-border)',
+                borderRadius: '8px',
+                padding: '0.75rem 1rem',
+                color: 'var(--text-primary)',
+                outline: 'none',
+              }}
+            />
+            <button 
+              className="btn-primary" 
+              onClick={handleForwardDraft}
+              disabled={isForwardDrafting || !forwardInstruction.trim()}
+              style={{ padding: '0.75rem 1.5rem', background: 'rgba(99, 102, 241, 0.2)', border: '1px solid rgba(99, 102, 241, 0.4)' }}
+            >
+              ✨ AI Intro
+            </button>
+          </div>
+
+          <textarea
+            value={forwardText}
+            onChange={(e) => setForwardText(e.target.value)}
+            style={{
+              width: '100%',
+              minHeight: '200px',
+              background: 'rgba(0,0,0,0.2)',
+              border: '1px solid var(--panel-border)',
+              borderRadius: '8px',
+              padding: '1rem',
+              color: 'var(--text-primary)',
+              outline: 'none',
+              resize: 'vertical',
+              lineHeight: '1.5'
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '1rem' }} onMouseDown={(e) => e.stopPropagation()}>
+            <button 
+              className="btn-primary" 
+              onClick={() => setShowForwardConfirmation(true)}
+              disabled={isForwardDrafting || !forwardTo.trim()}
+            >
+              Send Forward
             </button>
           </div>
         </div>
@@ -545,6 +718,50 @@ const ReadingView = ({ email, folder, onTriggerMaintenance, onRefresh }) => {
                 )}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Forward Confirmation Modal */}
+      {showForwardConfirmation && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100 }}>
+          <div className="glass-panel" style={{ padding: '2rem', width: '400px', display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'center' }}>
+            {sendSuccess ? (
+              <>
+                <div style={{ fontSize: '3rem', margin: '1rem 0' }}>✅</div>
+                <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Forward Sent!</h3>
+                <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Your forwarded email has been dispatched.</p>
+              </>
+            ) : (
+              <>
+                <h3 style={{ margin: 0, fontSize: '1.25rem', color: 'var(--text-primary)' }}>Send this forward?</h3>
+                <p style={{ margin: 0, color: 'var(--text-secondary)' }}>Are you sure you want to forward this email to <strong>{forwardTo}</strong>?</p>
+                <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center', marginTop: '1rem' }}>
+                  <button 
+                    onClick={() => setShowForwardConfirmation(false)}
+                    disabled={isSending}
+                    style={{ padding: '0.75rem 1.5rem', borderRadius: '8px', background: 'transparent', border: '1px solid var(--panel-border)', color: 'white', cursor: 'pointer', flex: 1 }}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={executeForward}
+                    disabled={isSending}
+                    className="btn-primary"
+                    style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '0.5rem' }}
+                  >
+                    {isSending ? (
+                      <>
+                        <div className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }}></div>
+                        Sending...
+                      </>
+                    ) : (
+                      'Yes, Forward'
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

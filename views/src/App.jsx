@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import InboxList from './components/InboxList';
 import ReadingView from './components/ReadingView';
 import MaintenancePlaceholder from './components/MaintenancePlaceholder';
+import ComposeView from './components/ComposeView';
 import { api } from './api';
 
 function App() {
@@ -14,11 +15,13 @@ function App() {
 
   // Fetch emails when folder changes
   const loadEmails = async (preserveSelection = false) => {
-    if (activePhase && activePhase > 4) {
+    if (activePhase && activePhase > 4 && activeFolder !== 'compose') {
       setEmails([]);
       setSelectedEmail(null);
       return;
     }
+    if (activeFolder === 'compose') return;
+    
     const data = await api.fetchFolder(activeFolder);
     setEmails(data);
     if (!preserveSelection) {
@@ -48,9 +51,13 @@ function App() {
     <>
       <Sidebar activeFolder={activeFolder} onFolderChange={handleFolderChange} />
       
-      {activePhase && activePhase > 4 ? (
+      {activeFolder === 'compose' ? (
+        <div className="glass-panel" style={{ flex: 1, padding: 0 }}>
+          <ComposeView onCancel={() => handleFolderChange('inbox', 4)} />
+        </div>
+      ) : activePhase && activePhase > 4 ? (
         <div className="glass-panel" style={{ flex: 1 }}>
-          <MaintenancePlaceholder featureName={activeFolder === 'compose' ? 'Compose New Email' : 'Drafts Router'} />
+          <MaintenancePlaceholder featureName={'Drafts Router'} />
         </div>
       ) : (
         <>

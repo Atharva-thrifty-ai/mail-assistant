@@ -1,9 +1,8 @@
 const express = require('express');
 const router = express.Router();
+const { composeDraftStream, composeSend } = require('../controllers/composeController');
 
-// The compose route for creating brand new emails (Phase 7)
-router.get('/', (req, res) => {
-    res.json({ message: "Page under maintenance" });
-});
+router.post('/draft', composeDraftStream);
+router.post('/send', composeSend);
 
 module.exports = router;
