@@ -50,8 +50,6 @@ const ReadingView = ({ email, folder, onTriggerMaintenance, onRefresh }) => {
   const [showForwardBox, setShowForwardBox] = useState(false);
   const [forwardText, setForwardText] = useState('');
   const [forwardTo, setForwardTo] = useState('');
-  const [forwardInstruction, setForwardInstruction] = useState('');
-  const [isForwardDrafting, setIsForwardDrafting] = useState(false);
   const [showForwardConfirmation, setShowForwardConfirmation] = useState(false);
 
   const draftBoxRef = useRef(null);
@@ -220,59 +218,10 @@ const ReadingView = ({ email, folder, onTriggerMaintenance, onRefresh }) => {
   const handleForward = () => {
     setShowForwardBox(true);
     const originalText = history.length > 0 
-      ? history.map(m => `From: ${m.sender || m.from}\nDate: ${new Date(m.timestamp || m.date || email.date).toLocaleString()}\n\n${m.body || m.snippet}`).join('\n\n')
+      ? history.map(m => `From: ${m.sender || m.from}\nDate: ${new Date(m.timestamp || m.date || email.date).toLocaleString()}\n\n${(m.bodyHtml ? m.bodyHtml.replace(/<[^>]+>/g, '') : '') || m.snippet}`).join('\n\n')
       : email.snippet;
     
     setForwardText(`\n\n---------- Forwarded message ---------\n${originalText}`);
-  };
-
-  const handleForwardDraft = async () => {
-    if (!forwardInstruction.trim()) return;
-    
-    setIsForwardDrafting(true);
-    
-    try {
-      const response = await fetch(`http://localhost:5000/api/${folder}/${email.internal_thread_id}/forward/draft`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instructions: forwardInstruction })
-      });
-
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let aiIntro = '';
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
-        
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const dataStr = line.slice(6);
-            if (dataStr === '[DONE]') break;
-            try {
-              const data = JSON.parse(dataStr);
-              if (data.text) {
-                aiIntro += data.text;
-                // Prepend AI intro to the original forwarded text
-                setForwardText(aiIntro + `\n\n---------- Forwarded message ---------\n` + (history.length > 0 
-                  ? history.map(m => `From: ${m.sender || m.from}\nDate: ${new Date(m.timestamp || m.date || email.date).toLocaleString()}\n\n${m.body || m.snippet}`).join('\n\n')
-                  : email.snippet));
-              }
-            } catch (e) {
-              console.error("Error parsing JSON chunk", e);
-            }
-          }
-        }
-      }
-    } catch (error) {
-      console.error("Failed to generate forward draft", error);
-    } finally {
-      setIsForwardDrafting(false);
-    }
   };
 
   const executeForward = async () => {
@@ -515,7 +464,6 @@ const ReadingView = ({ email, folder, onTriggerMaintenance, onRefresh }) => {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
             <span style={{ fontWeight: '600', color: 'var(--accent-color)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               ↪️ Forward
-              {isForwardDrafting && <div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }}></div>}
             </span>
             <button onMouseDown={(e) => e.stopPropagation()} onClick={() => setShowForwardBox(false)} style={{ color: 'var(--text-secondary)' }}>✕</button>
           </div>
@@ -537,39 +485,7 @@ const ReadingView = ({ email, folder, onTriggerMaintenance, onRefresh }) => {
             }}
           />
 
-          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-            <input 
-              onMouseDown={(e) => e.stopPropagation()}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && forwardInstruction.trim() && !isForwardDrafting) {
-                  e.preventDefault();
-                  handleForwardDraft();
-                }
-              }}
-              type="text" 
-              placeholder="AI Instructions (e.g. Write a brief intro asking them to review this)" 
-              value={forwardInstruction}
-              onChange={(e) => setForwardInstruction(e.target.value)}
-              disabled={isForwardDrafting}
-              style={{
-                flex: 1,
-                background: 'rgba(0,0,0,0.2)',
-                border: '1px solid var(--panel-border)',
-                borderRadius: '8px',
-                padding: '0.75rem 1rem',
-                color: 'var(--text-primary)',
-                outline: 'none',
-              }}
-            />
-            <button 
-              className="btn-primary" 
-              onClick={handleForwardDraft}
-              disabled={isForwardDrafting || !forwardInstruction.trim()}
-              style={{ padding: '0.75rem 1.5rem', background: 'rgba(99, 102, 241, 0.2)', border: '1px solid rgba(99, 102, 241, 0.4)' }}
-            >
-              ✨ AI Intro
-            </button>
-          </div>
+
 
           <textarea
             value={forwardText}
@@ -591,7 +507,7 @@ const ReadingView = ({ email, folder, onTriggerMaintenance, onRefresh }) => {
             <button 
               className="btn-primary" 
               onClick={() => setShowForwardConfirmation(true)}
-              disabled={isForwardDrafting || !forwardTo.trim()}
+              disabled={!forwardTo.trim()}
             >
               Send Forward
             </button>

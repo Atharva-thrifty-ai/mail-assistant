@@ -130,13 +130,7 @@ async function forwardSend(req, res) {
             return res.status(404).json({ success: false, error: 'Thread not found' });
         }
 
-        let subject = metadataRow.subject || '';
-        if (subject && !subject.toLowerCase().startsWith('fwd:')) {
-            subject = `Fwd: ${subject}`;
-        } else if (!subject) {
-            subject = 'Fwd:';
-        }
-
+        const subject = metadataRow.subject || '';
         const draft = await createComposeDraft(to, subject, draftText, metadataRow.provider_thread_id);
         if (draft && draft.id) {
             const success = await sendGmailDraft(draft.id);
