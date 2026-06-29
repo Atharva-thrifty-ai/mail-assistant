@@ -40,6 +40,10 @@ const ReadingView = ({ email, folder, onTriggerMaintenance }) => {
   const [draftText, setDraftText] = useState('');
   const [isDrafting, setIsDrafting] = useState(false);
   const [redraftInstruction, setRedraftInstruction] = useState('');
+  
+  const [showSendConfirmation, setShowSendConfirmation] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [sendSuccess, setSendSuccess] = useState(false);
 
   const draftBoxRef = useRef(null);
 
@@ -52,31 +56,31 @@ const ReadingView = ({ email, folder, onTriggerMaintenance }) => {
     }
   }, [showDraftBox]);
 
+  const fetchThread = async () => {
+    setLoading(true);
+    setShowSummary(false);
+    setSummary(null);
+    // Fetch thread history
+    const data = await api.fetchThreadHistory(folder, email.internal_thread_id);
+    if (data && data.messages) {
+      setHistory(data.messages);
+    } else {
+      setHistory([]);
+    }
+
+    // Inline Draft Rendering
+    if (data && data.draft) {
+      setDraftText(data.draft);
+      setShowDraftBox(true);
+    } else {
+      setDraftText('');
+      setShowDraftBox(false);
+    }
+
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const fetchThread = async () => {
-      setLoading(true);
-      setShowSummary(false);
-      setSummary(null);
-      // Fetch thread history
-      const data = await api.fetchThreadHistory(folder, email.internal_thread_id);
-      if (data && data.messages) {
-        setHistory(data.messages);
-      } else {
-        setHistory([]);
-      }
-
-      // Inline Draft Rendering
-      if (data && data.draft) {
-        setDraftText(data.draft);
-        setShowDraftBox(true);
-      } else {
-        setDraftText('');
-        setShowDraftBox(false);
-      }
-
-      setLoading(false);
-    };
-
     fetchThread();
   }, [email, folder]);
 
@@ -181,6 +185,34 @@ const ReadingView = ({ email, folder, onTriggerMaintenance }) => {
     } catch (err) {
       console.error('Redraft Error', err);
       setIsDrafting(false);
+    }
+  };
+
+  const handleSendConfirm = async () => {
+    setIsSending(true);
+    try {
+      const response = await fetch(`http://localhost:5000/api/${folder}/${email.internal_thread_id}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ draftText })
+      });
+      if (response.ok) {
+        setSendSuccess(true);
+        setTimeout(() => {
+          setShowSendConfirmation(false);
+          setShowDraftBox(false);
+          setDraftText('');
+          setIsSending(false);
+          setSendSuccess(false);
+          fetchThread();
+        }, 1000);
+      } else {
+        throw new Error('Failed to send');
+      }
+    } catch (err) {
+      console.error('Send Error', err);
+      setIsSending(false);
+      alert('Failed to send email.');
     }
   };
 
@@ -345,7 +377,11 @@ const ReadingView = ({ email, folder, onTriggerMaintenance }) => {
             >
               Redraft
             </button>
-            <button className="btn-primary" disabled={isDrafting}>
+            <button 
+              className="btn-primary" 
+              onClick={() => setShowSendConfirmation(true)}
+              disabled={isDrafting}
+            >
               Send
             </button>
           </div>
@@ -397,6 +433,81 @@ const ReadingView = ({ email, folder, onTriggerMaintenance }) => {
               <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Generating premium summary...</span>
             </div>
           )}
+        </div>
+      )}
+      {/* Send Confirmation Modal */}
+      {showSendConfirmation && (
+        <div style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          backdropFilter: 'blur(5px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div className="glass-panel" style={{
+            width: '600px',
+            maxWidth: '90vw',
+            padding: '2rem',
+            borderRadius: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.5rem',
+            border: '1px solid rgba(255,255,255,0.1)'
+          }}>
+            <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 600 }}>Confirm Send</h2>
+            
+            <div style={{
+              background: 'rgba(0,0,0,0.2)',
+              border: '1px solid var(--panel-border)',
+              borderRadius: '8px',
+              padding: '1rem',
+              color: 'var(--text-secondary)',
+              maxHeight: '300px',
+              overflowY: 'auto',
+              whiteSpace: 'pre-wrap',
+              fontSize: '0.9rem'
+            }}>
+              {draftText}
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+              {!isSending && !sendSuccess && (
+                <button 
+                  className="btn-secondary" 
+                  onClick={() => setShowSendConfirmation(false)}
+                  style={{ background: 'transparent', border: '1px solid var(--panel-border)', padding: '0.75rem 1.5rem', borderRadius: '8px', color: 'var(--text-primary)', cursor: 'pointer' }}
+                >
+                  Cancel
+                </button>
+              )}
+              
+              <button 
+                className="btn-primary"
+                onClick={handleSendConfirm}
+                disabled={isSending || sendSuccess}
+                style={{ 
+                  minWidth: '120px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  background: sendSuccess ? 'rgba(16, 185, 129, 0.2)' : 'var(--accent-color)',
+                  border: sendSuccess ? '1px solid rgba(16, 185, 129, 0.5)' : 'none',
+                  color: sendSuccess ? '#10b981' : 'white'
+                }}
+              >
+                {sendSuccess ? (
+                  <span style={{ fontSize: '1.2rem' }}>✅</span>
+                ) : isSending ? (
+                  <div className="spinner" style={{ width: '20px', height: '20px', borderWidth: '2px' }}></div>
+                ) : (
+                  'Confirm Send'
+                )}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

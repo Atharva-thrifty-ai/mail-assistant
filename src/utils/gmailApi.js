@@ -1,5 +1,6 @@
 const logger = require('../utils/logger');
 const { google } = require('googleapis');
+const { metadataDb } = require('../config/database');
 
 // Construct raw RFC 2822 email format required by the Gmail API
 function makeRawEmail(to, from, subject, message) {
@@ -32,9 +33,19 @@ async function createGmailDraft(provider_thread_id, draftText) {
     try {
         logger.info(`[GMAIL API] Pushing draft to provider thread: ${provider_thread_id}...`);
         
-        // Construct the RFC 2822 email. 
-        // By passing threadId in the API request body below, Gmail automatically assigns the correct To/From/Subject!
-        const rawMessage = makeRawEmail('', '', '', draftText);
+        // Lookup thread metadata to properly populate To and Subject headers
+        const metadataRow = metadataDb.prepare("SELECT sender_email, subject FROM metadata WHERE provider_thread_id = ?").get(provider_thread_id);
+        let to = '';
+        let subject = '';
+        if (metadataRow) {
+            to = metadataRow.sender_email || '';
+            subject = metadataRow.subject || '';
+            if (subject && !subject.toLowerCase().startsWith('re:')) {
+                subject = `Re: ${subject}`;
+            }
+        }
+        
+        const rawMessage = makeRawEmail(to, 'me', subject, draftText);
 
         const response = await gmail.users.drafts.create({
             userId: 'me',
@@ -49,7 +60,8 @@ async function createGmailDraft(provider_thread_id, draftText) {
         logger.info(`[GMAIL API] Successfully created native Draft! Draft ID: ${response.data.id}`);
         return response.data;
     } catch (error) {
-        logger.error(`[GMAIL API ERROR] Failed to create draft:`, error.message);
+        const exactError = error.response?.data?.error?.message || error.message;
+        logger.error(`[GMAIL API ERROR] Failed to create draft:`, exactError);
         return null;
     }
 }
@@ -61,7 +73,21 @@ async function updateGmailDraft(draftId, provider_thread_id, draftText) {
 
     try {
         logger.info(`[GMAIL API] Updating draft ${draftId}...`);
-        const rawMessage = makeRawEmail('', '', '', draftText);
+        
+        // Lookup thread metadata to properly populate To and Subject headers
+        const metadataRow = metadataDb.prepare("SELECT sender_email, subject FROM metadata WHERE provider_thread_id = ?").get(provider_thread_id);
+        let to = '';
+        let subject = '';
+        if (metadataRow) {
+            to = metadataRow.sender_email || '';
+            subject = metadataRow.subject || '';
+            if (subject && !subject.toLowerCase().startsWith('re:')) {
+                subject = `Re: ${subject}`;
+            }
+        }
+        
+        const rawMessage = makeRawEmail(to, 'me', subject, draftText);
+        
         const response = await gmail.users.drafts.update({
             userId: 'me',
             id: draftId,
@@ -72,7 +98,8 @@ async function updateGmailDraft(draftId, provider_thread_id, draftText) {
         logger.info(`[GMAIL API] Successfully updated native Draft!`);
         return response.data;
     } catch (error) {
-        logger.error(`[GMAIL API ERROR] Failed to update draft:`, error.message);
+        const exactError = error.response?.data?.error?.message || error.message;
+        logger.error(`[GMAIL API ERROR] Failed to update draft:`, exactError);
         return null;
     }
 }
@@ -129,5 +156,25 @@ async function getGmailThreadDrafts(provider_thread_id) {
         return null;
     }
 }
+async function sendGmailDraft(draftId) {
+    const oauth2Client = new google.auth.OAuth2(process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET);
+    oauth2Client.setCredentials({ refresh_token: process.env.GMAIL_REFRESH_TOKEN });
+    const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-module.exports = { createGmailDraft, updateGmailDraft, getGmailDraftText, getGmailThreadDrafts };
+    try {
+        const response = await gmail.users.drafts.send({
+            userId: 'me',
+            requestBody: {
+                id: draftId
+            }
+        });
+        logger.info(`[GMAIL API] Successfully sent Draft ID: ${draftId}`);
+        return response.data;
+    } catch (error) {
+        const exactError = error.response?.data?.error?.message || error.message;
+        logger.error(`[GMAIL API ERROR] Failed to send draft:`, exactError);
+        return null;
+    }
+}
+
+module.exports = { createGmailDraft, updateGmailDraft, getGmailDraftText, getGmailThreadDrafts, sendGmailDraft };

@@ -1,5 +1,6 @@
 const logger = require('../../src/utils/logger');
 const express = require('express');
+const { sendDraft } = require('../services/senderService');
 const router = express.Router();
 const { metadataDb, statusDb } = require('../../src/config/database');
 const { extractThreadHistory } = require('../services/extractorService');
@@ -99,6 +100,19 @@ router.post('/:thread_id/redraft', async (req, res) => {
     } catch (error) {
         res.write(`data: ${JSON.stringify({ error: error.message })}\n\n`);
         res.end();
+    }
+});
+
+// SEND EMAIL ROUTE
+router.post('/:thread_id/send', async (req, res) => {
+    try {
+        const { draftText } = req.body;
+        const thread_id = req.params.thread_id;
+        const result = await sendDraft(thread_id, draftText);
+        res.json(result);
+    } catch (error) {
+        logger.error(`[BFF API ERROR] Failed to send email for thread ${req.params.thread_id}:`, error.message);
+        res.status(500).json({ error: error.message || 'Internal Server Error' });
     }
 });
 
