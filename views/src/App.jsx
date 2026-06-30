@@ -12,6 +12,7 @@ function App() {
   const [emails, setEmails] = useState([]);
   const [selectedEmail, setSelectedEmail] = useState(null);
   const [maintenanceToast, setMaintenanceToast] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Fetch emails when folder changes
   const loadEmails = async (preserveSelection = false) => {
@@ -22,7 +23,13 @@ function App() {
     }
     if (activeFolder === 'compose') return;
     
-    const data = await api.fetchFolder(activeFolder);
+    let data = [];
+    if (searchQuery && searchQuery.trim() !== '') {
+      data = await api.searchEmails(searchQuery);
+    } else {
+      data = await api.fetchFolder(activeFolder);
+    }
+    
     setEmails(data);
     if (!preserveSelection) {
       setSelectedEmail(null);
@@ -34,12 +41,16 @@ function App() {
   };
 
   useEffect(() => {
-    loadEmails(false);
-  }, [activeFolder, activePhase]);
+    const timeoutId = setTimeout(() => {
+      loadEmails(false);
+    }, 200); // 200ms debounce for live search
+    return () => clearTimeout(timeoutId);
+  }, [activeFolder, activePhase, searchQuery]);
 
   const handleFolderChange = (folderId, phase = 4) => {
     setActiveFolder(folderId);
     setActivePhase(phase);
+    setSearchQuery(''); // clear search when navigating folders
   };
 
   const triggerMaintenance = (featureName) => {
@@ -62,12 +73,14 @@ function App() {
       ) : (
         <>
           <InboxList 
-            folder={activeFolder} 
+            folder={searchQuery ? 'search results' : activeFolder} 
             emails={emails} 
             onSelectEmail={setSelectedEmail} 
             selectedId={selectedEmail?.internal_thread_id}
             onTriggerMaintenance={triggerMaintenance}
             onRefresh={() => loadEmails(true)}
+            searchQuery={searchQuery}
+            setSearchQuery={setSearchQuery}
           />
           
           {selectedEmail ? (

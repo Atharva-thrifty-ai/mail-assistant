@@ -13,6 +13,7 @@ const workProfessionalRoutes = require('./routes/workProfessional');
 const personalSocialRoutes = require('./routes/personalSocial');
 const composeRoutes = require('./routes/compose');
 const metricsRoutes = require('./routes/metrics');
+const searchRoutes = require('./routes/search');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -47,6 +48,7 @@ app.use('/api/work-professional', workProfessionalRoutes);
 app.use('/api/personal-social', personalSocialRoutes);
 app.use('/api/compose', composeRoutes);
 app.use('/api/token_info', metricsRoutes);
+app.use('/api/search', searchRoutes);
 
 // Start Server
 app.listen(PORT, () => {

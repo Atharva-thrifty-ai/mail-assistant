@@ -35,5 +35,17 @@ export const api = {
       console.error(error);
       return null;
     }
+  },
+
+  // Global Search
+  searchEmails: async (query) => {
+    try {
+      const response = await fetch(`${BASE_URL}/search?q=${encodeURIComponent(query)}`);
+      if (!response.ok) throw new Error('Failed to search');
+      return await response.json();
+    } catch (error) {
+      console.error(error);
+      return [];
+    }
   }
 };

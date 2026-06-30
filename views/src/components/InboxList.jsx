@@ -1,10 +1,14 @@
 import React from 'react';
+import SearchBar from './SearchBar';
 
-const InboxList = ({ folder, emails, onSelectEmail, selectedId, onTriggerMaintenance, onRefresh }) => {
+const InboxList = ({ folder, emails, onSelectEmail, selectedId, onTriggerMaintenance, onRefresh, searchQuery, setSearchQuery }) => {
   if (!emails || emails.length === 0) {
     return (
-      <div className="glass-panel" style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-        <p style={{ color: 'var(--text-secondary)' }}>No emails found in {folder}</p>
+      <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+        <div style={{ flex: 1, display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+          <p style={{ color: 'var(--text-secondary)' }}>No emails found in {folder.replace('-', ' ')}</p>
+        </div>
       </div>
     );
   }
@@ -25,6 +29,7 @@ const InboxList = ({ folder, emails, onSelectEmail, selectedId, onTriggerMainten
 
   return (
     <div className="glass-panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
       <div style={{ padding: '1rem', borderBottom: '1px solid var(--panel-border)' }}>
         <h2 style={{ fontSize: '1.25rem', fontWeight: '600', textTransform: 'capitalize' }}>
           {folder.replace('-', ' ')}
