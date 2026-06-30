@@ -118,8 +118,14 @@ async function runClassifierNode(ueo) {
     if (!ueo.is_spam) {
         // AI Spam Flagging: If AI detects spam, permanently flag it as spam in the DB
         if (structuredResult.categories && structuredResult.categories.includes("Spam")) {
-            logger.info(`[CLASSIFIER NODE] AI flagged thread as Spam. Updating is_spam = 1.`);
-            metadataDb.prepare(`UPDATE metadata SET is_spam = 1 WHERE internal_thread_id = ?`)
+            logger.info(`[CLASSIFIER NODE] AI flagged thread as Spam. Updating is_spam = 1 and is_inbox = 0.`);
+            
+            // Remove other conflicting categories if it's spam
+            structuredResult.categories = structuredResult.categories.filter(cat => 
+                !["Attention", "Work & Professional", "Personal & Social"].includes(cat)
+            );
+
+            metadataDb.prepare(`UPDATE metadata SET is_spam = 1, is_inbox = 0 WHERE internal_thread_id = ?`)
                 .run(internalThreadId);
         }
 

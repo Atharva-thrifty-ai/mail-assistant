@@ -179,7 +179,7 @@ const ReadingView = ({ email, folder, onTriggerMaintenance, onRefresh }) => {
       const response = await fetch(`http://localhost:5000/api/${folder}/${email.internal_thread_id}/redraft`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ instruction: redraftInstruction, draftText })
+        body: JSON.stringify({ user_comments: redraftInstruction, earlier_draft: draftText })
       });
 
       const reader = response.body.getReader();
@@ -199,8 +199,8 @@ const ReadingView = ({ email, folder, onTriggerMaintenance, onRefresh }) => {
             if (dataStr === '[SSE_WAITING]') continue;
             try {
               const data = JSON.parse(dataStr);
-              if (data.text) {
-                setDraftText(prev => prev + data.text);
+              if (data.token) {
+                setDraftText(prev => prev + data.token);
               }
             } catch (e) {
               console.error("Error parsing JSON chunk", e);
