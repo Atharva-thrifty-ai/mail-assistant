@@ -4,6 +4,8 @@ const { PromptTemplate } = require("@langchain/core/prompts");
 const fs = require('fs');
 const path = require('path');
 const { createGmailDraft } = require('../utils/gmailApi');
+const { metricsDb } = require('../config/database');
+const { TpmCallback } = require('../utils/tpmCallback');
 
 // Simple cosine similarity dot product
 function cosineSimilarity(vecA, vecB) {
@@ -57,7 +59,8 @@ async function runDrafterNode(ueo) {
         const llm = new ChatOpenAI({
             openAIApiKey: process.env.OPENAI_API_KEY,
             modelName: "gpt-4o-mini",
-            temperature: 0.2
+            temperature: 0.2,
+            callbacks: [new TpmCallback()]
         });
 
         const prompt = PromptTemplate.fromTemplate(`
@@ -91,6 +94,23 @@ Do NOT include Subject lines or "To/From" headers. Just the raw email text.
         });
 
         const draftText = result.content;
+        
+        // Manual Node Tracking
+        let inputTokens = 0;
+        let outputTokens = 0;
+        if (result.usage_metadata) {
+            inputTokens = result.usage_metadata.input_tokens || 0;
+            outputTokens = result.usage_metadata.output_tokens || 0;
+        }
+        
+        metricsDb.prepare(`
+            INSERT INTO node_metrics (node_name, total_input_tokens, total_output_tokens, total_requests)
+            VALUES ('Drafter Node', ?, ?, 1)
+            ON CONFLICT(node_name) DO UPDATE SET 
+                total_input_tokens = total_input_tokens + excluded.total_input_tokens,
+                total_output_tokens = total_output_tokens + excluded.total_output_tokens,
+                total_requests = total_requests + 1
+        `).run(inputTokens, outputTokens);
         
         if (draftText.trim() === 'SKIP') {
             logger.info(`[DRAFTER NODE] AI determined no reply is needed. Skipping draft creation.`);

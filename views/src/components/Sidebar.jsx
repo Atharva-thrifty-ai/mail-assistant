@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
+import TokenModal from './TokenModal';
 
 const Sidebar = ({ activeFolder, onFolderChange }) => {
+  const [isTokenModalOpen, setIsTokenModalOpen] = useState(false);
   const folders = [
     { id: 'inbox', label: 'Inbox', icon: '📥' },
     { id: 'starred', label: 'Starred', icon: '⭐' },
@@ -86,6 +88,35 @@ const Sidebar = ({ activeFolder, onFolderChange }) => {
           ))}
         </div>
       </div>
+
+      <div style={{ marginTop: 'auto', paddingTop: '2rem' }}>
+        <button 
+          style={{
+            width: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.5rem',
+            padding: '0.75rem',
+            borderRadius: '8px',
+            color: 'var(--text-secondary)',
+            background: 'rgba(255,255,255,0.05)',
+            border: '1px solid rgba(255,255,255,0.1)',
+            transition: 'all 0.2s',
+            cursor: 'pointer',
+            fontSize: '0.85rem'
+          }}
+          onClick={() => setIsTokenModalOpen(true)}
+          onMouseOver={(e) => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.2)' }}
+          onMouseOut={(e) => { e.currentTarget.style.color = 'var(--text-secondary)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)' }}
+        >
+          <span>📊</span> Token Information
+        </button>
+      </div>
+
+      {isTokenModalOpen && (
+        <TokenModal onClose={() => setIsTokenModalOpen(false)} />
+      )}
     </div>
   );
 };

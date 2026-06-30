@@ -105,25 +105,27 @@ This document tracks the actual development progress against the finalized maste
   - Extract the core RAG-grounded LLM chain from the Pure Backend so the BFF can reuse it for the "fast-create" streaming engine and the dynamic "Redraft" POST logic.
   - Implement Server-Sent Events (SSE) for the drafting node to stream generated text to the UI instantly.
 
-- `[ ]` **Phase 4: Folder & Core Endpoints (UI Integration)**
-  - `[✅]` **Part 1:** Scaffold the Express server (`app.js`) and implement one core route (e.g., `/api/inbox`) to verify the foundation.
-  - `[✅]` **Part 2:** Implement all remaining folder and core routes *except* the Draft endpoint.
-  - `[ ]` **Part 3:** Implement the Frontend UI and map the React components to these new backend endpoints.
+- `[✅]` **Phase 4: Folder & Core Endpoints (UI Integration)**
+  - `[✅]` **Part 1:** Scaffold the Express server (`app.js`) and implement one core route.
+  - `[✅]` **Part 2:** Implement all remaining folder and core routes.
+  - `[✅]` **Part 3:** Implement the Frontend UI and map the React components to these new backend endpoints.
 
-- `[ ]` **Phase 5: The Draft Endpoint & Drafts Router**
-  - `[✅]` Connect the Drafting logic to the `/api/:folder/:thread_id/draft` endpoint across the core folders.
+- `[✅]` **Phase 5: The Draft Endpoint & Drafts Router**
+  - `[✅]` Connect the Drafting logic to the `/api/:folder/:thread_id/draft` endpoint.
   - `[✅]` Configure the Server-Sent Events (SSE) streaming infrastructure.
-  - `[ ]` Complete the overarching `/api/drafts` router logic to ensure seamless integration when navigating via the Drafts folder.
-  -udpating the /draft endpoint view also the way gmail shows
+  - `[✅]` Complete the overarching `/api/drafts` router logic.
+  - `[✅]` Update the `/draft` endpoint view to perfectly match the Gmail UI aesthetic.
 
-- `[ ]` **Phase 6: The Send Endpoint Configuration**
-  - Implement the final `/api/send` endpoint.
-  - Ensure the drafted text from the Compose Box is successfully dispatched to the Gmail/Graph APIs.
+- `[✅]` **Phase 6: The Send & Forward Configurations**
+  - `[✅]` Implement the final `/api/send` endpoint.
+  - `[✅]` Ensure the drafted text from the Compose Box and Forwarding box is successfully dispatched to the Gmail APIs.
+  - `[✅]` Build `senderService.js` to handle deleted-draft recreation edge cases seamlessly.
 
-- `[ ]` **Phase 7: Advanced Email Actions**
-  - Implement Compose functionality for sending new emails.
-  - Implement Forwarding logic for existing threads.
-  - Implement Star/Unstar and Delete/Trash functionality.
+- `[✅]` **Phase 7: Advanced Optimistic Actions**
+  - `[✅]` Implement Compose functionality for sending new emails.
+  - `[✅]` Implement Forwarding logic for existing threads.
+  - `[✅]` Implement Star/Unstar and Delete/Trash functionality with Optimistic UI rendering.
 
 - `[ ]` **Future Phases / Enhancements**
-  - Implement **Predictive Prefetching**: Silently pre-fetch full thread histories in the background for visible inbox items to achieve Gmail-like "zero-latency" instant email loading.
+  - **Global Search Bar:** Add a live "as-you-type" search bar to every folder in the UI, filtering the lightweight SQLite metadata for instant, zero-latency results.
+  - **Predictive Prefetching:** Silently pre-fetch full thread histories in the background for visible inbox items to achieve Gmail-like "zero-latency" instant email loading.

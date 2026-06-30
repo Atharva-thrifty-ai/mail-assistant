@@ -61,7 +61,7 @@ async function startIngestionEngine() {
     
     if (countRow.count === 0) {
         logger.info("[BOOT] Database is empty. Initiating Case 1A: Full Synchronization (Past 10 days)...");
-        const results = await performGmailFullSync(10);
+        const results = await performGmailFullSync(20);
         processAndEnqueueResults(results);
     } else {
         logger.info(`[BOOT] Database has ${countRow.count} emails. Initiating Case 1B: Delta Catch-Up...`);

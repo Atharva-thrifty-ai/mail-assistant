@@ -4,7 +4,8 @@ const fs = require('fs');
 const path = require('path');
 const { PromptTemplate } = require('@langchain/core/prompts');
 const { z } = require('zod');
-const { summariesDb, metadataDb } = require('../config/database');
+const { summariesDb, metadataDb, metricsDb } = require('../config/database');
+const { TpmCallback } = require('../utils/tpmCallback');
 
 // Simple cosine similarity dot product
 function cosineSimilarity(vecA, vecB) {
@@ -30,8 +31,9 @@ const classifierSchema = z.object({
 const llm = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY,
     modelName: "gpt-4o-mini", // Literal API equivalent for cheap/fast processing
-    temperature: 0.1 // Very low temp for strict classification
-}).withStructuredOutput(classifierSchema);
+    temperature: 0.1, // Very low temp for strict classification
+    callbacks: [new TpmCallback()]
+}).withStructuredOutput(classifierSchema, { includeRaw: true });
 
 // 3. The Prompt Template
 const classifierPrompt = PromptTemplate.fromTemplate(`
@@ -97,11 +99,31 @@ async function runClassifierNode(ueo) {
     // 3. Execute the Chain (returns a perfect JSON object matching our Zod schema)
     const chain = classifierPrompt.pipe(llm);
 
-    const structuredResult = await chain.invoke({
+    const invokeResult = await chain.invoke({
         rag_context: ragContext,
         running_summary: runningSummary,
         recent_messages: recentMessagesText
     });
+
+    const structuredResult = invokeResult.parsed;
+    const rawMessage = invokeResult.raw;
+
+    // Manual Node Tracking
+    let inputTokens = 0;
+    let outputTokens = 0;
+    if (rawMessage && rawMessage.usage_metadata) {
+        inputTokens = rawMessage.usage_metadata.input_tokens || 0;
+        outputTokens = rawMessage.usage_metadata.output_tokens || 0;
+    }
+    
+    metricsDb.prepare(`
+        INSERT INTO node_metrics (node_name, total_input_tokens, total_output_tokens, total_requests)
+        VALUES ('Classifier Node', ?, ?, 1)
+        ON CONFLICT(node_name) DO UPDATE SET 
+            total_input_tokens = total_input_tokens + excluded.total_input_tokens,
+            total_output_tokens = total_output_tokens + excluded.total_output_tokens,
+            total_requests = total_requests + 1
+    `).run(inputTokens, outputTokens);
 
     logger.info(`[CLASSIFIER NODE] Generated: ${JSON.stringify(structuredResult)}`);
 

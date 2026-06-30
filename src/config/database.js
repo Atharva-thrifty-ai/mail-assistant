@@ -13,9 +13,10 @@ const statusDb = new Database(path.join(dbDir, 'status.db'));
 const summariesDb = new Database(path.join(dbDir, 'summaries.db')); // UI Summaries DB
 const queuesDb = new Database(path.join(dbDir, 'queues.db')); // Transient DB for heavy UEO payloads
 const memoryDb = new Database(path.join(dbDir, 'memory.db')); // Running Summary Dictionary for AI
+const metricsDb = new Database(path.join(dbDir, 'metrics.db')); // Global Token Tracking
 
 // Enable WAL mode for concurrency and performance
-[metadataDb, statusDb, summariesDb, queuesDb, memoryDb].forEach(db => {
+[metadataDb, statusDb, summariesDb, queuesDb, memoryDb, metricsDb].forEach(db => {
     db.pragma('journal_mode = WAL');
     db.pragma('synchronous = NORMAL');
 });
@@ -89,10 +90,38 @@ memoryDb.exec(`
     )
 `);
 
+// Initialize Metrics Database
+metricsDb.exec(`
+    CREATE TABLE IF NOT EXISTS tpm_state (
+        id TEXT PRIMARY KEY,
+        current_minute TEXT NOT NULL,
+        current_tokens INTEGER NOT NULL DEFAULT 0,
+        current_requests INTEGER NOT NULL DEFAULT 0,
+        max_tpm INTEGER NOT NULL DEFAULT 0,
+        max_rpm INTEGER NOT NULL DEFAULT 0
+    );
+`);
+
+// Insert the singleton row for TPM tracking if it doesn't exist
+const singletonExists = metricsDb.prepare("SELECT 1 FROM tpm_state WHERE id = 'singleton'").get();
+if (!singletonExists) {
+    metricsDb.prepare("INSERT INTO tpm_state (id, current_minute, current_tokens, current_requests, max_tpm, max_rpm) VALUES ('singleton', '', 0, 0, 0, 0)").run();
+}
+
+metricsDb.exec(`
+    CREATE TABLE IF NOT EXISTS node_metrics (
+        node_name TEXT PRIMARY KEY,
+        total_input_tokens INTEGER NOT NULL DEFAULT 0,
+        total_output_tokens INTEGER NOT NULL DEFAULT 0,
+        total_requests INTEGER NOT NULL DEFAULT 0
+    );
+`);
+
 module.exports = {
     metadataDb,
     statusDb,
     summariesDb,
     queuesDb,
-    memoryDb
+    memoryDb,
+    metricsDb
 };

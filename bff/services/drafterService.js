@@ -3,7 +3,8 @@ const { ChatOpenAI, OpenAIEmbeddings } = require("@langchain/openai");
 const { PromptTemplate } = require("@langchain/core/prompts");
 const fs = require('fs');
 const path = require('path');
-const { statusDb, metadataDb, memoryDb } = require('../../src/config/database');
+const { statusDb, metadataDb, memoryDb, metricsDb } = require('../../src/config/database');
+const { TpmCallback } = require('../../src/utils/tpmCallback');
 const { createGmailDraft, updateGmailDraft, getGmailDraftText, getGmailThreadDrafts } = require('../../src/utils/gmailApi');
 const { extractThreadHistory } = require('./extractorService');
 const { cleanMessageBody } = require('../../src/ingestion/preprocessor');
@@ -58,7 +59,9 @@ async function* generateFastCreateStream(internal_thread_id, provider_thread_id,
     const llm = new ChatOpenAI({
         openAIApiKey: process.env.OPENAI_API_KEY,
         modelName: "gpt-4o-mini",
-        temperature: 0.2
+        temperature: 0.2,
+        streamUsage: true,
+        callbacks: [new TpmCallback()]
     });
 
     const prompt = PromptTemplate.fromTemplate(`
@@ -90,10 +93,28 @@ Do NOT include Subject lines or "To/From" headers. Just the raw email text.
     });
 
     let fullDraftText = "";
+    let inputTokens = 0;
+    let outputTokens = 0;
+    
     for await (const chunk of stream) {
         fullDraftText += chunk.content;
+        
+        if (chunk.usage_metadata) {
+            inputTokens = chunk.usage_metadata.input_tokens || 0;
+            outputTokens = chunk.usage_metadata.output_tokens || 0;
+        }
+
         yield chunk.content;
     }
+
+    metricsDb.prepare(`
+        INSERT INTO node_metrics (node_name, total_input_tokens, total_output_tokens, total_requests)
+        VALUES ('BFF Fast-Create', ?, ?, 1)
+        ON CONFLICT(node_name) DO UPDATE SET 
+            total_input_tokens = total_input_tokens + excluded.total_input_tokens,
+            total_output_tokens = total_output_tokens + excluded.total_output_tokens,
+            total_requests = total_requests + 1
+    `).run(inputTokens, outputTokens);
 
     // POST-STREAM SYNC
     if (source === 'gmail') {
@@ -183,7 +204,9 @@ async function* redraftStream(internal_thread_id, user_comments, earlier_draft) 
     const llm = new ChatOpenAI({
         openAIApiKey: process.env.OPENAI_API_KEY,
         modelName: "gpt-4o-mini",
-        temperature: 0.4 // Slightly higher temperature for revision creativity
+        temperature: 0.4, // Slightly higher temperature for revision creativity
+        streamUsage: true,
+        callbacks: [new TpmCallback()]
     });
 
     const prompt = PromptTemplate.fromTemplate(`
@@ -218,10 +241,28 @@ Do NOT include Subject lines or headers. Just the raw email text.
     });
 
     let fullRevisedText = "";
+    let inputTokens = 0;
+    let outputTokens = 0;
+
     for await (const chunk of stream) {
         fullRevisedText += chunk.content;
+        
+        if (chunk.usage_metadata) {
+            inputTokens = chunk.usage_metadata.input_tokens || 0;
+            outputTokens = chunk.usage_metadata.output_tokens || 0;
+        }
+
         yield chunk.content;
     }
+
+    metricsDb.prepare(`
+        INSERT INTO node_metrics (node_name, total_input_tokens, total_output_tokens, total_requests)
+        VALUES ('BFF Redraft', ?, ?, 1)
+        ON CONFLICT(node_name) DO UPDATE SET 
+            total_input_tokens = total_input_tokens + excluded.total_input_tokens,
+            total_output_tokens = total_output_tokens + excluded.total_output_tokens,
+            total_requests = total_requests + 1
+    `).run(inputTokens, outputTokens);
 
     // POST-STREAM SYNC
     if (metadataRow.source === 'gmail') {

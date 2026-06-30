@@ -12,6 +12,7 @@ const attentionRoutes = require('./routes/attention');
 const workProfessionalRoutes = require('./routes/workProfessional');
 const personalSocialRoutes = require('./routes/personalSocial');
 const composeRoutes = require('./routes/compose');
+const metricsRoutes = require('./routes/metrics');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -45,6 +46,7 @@ app.use('/api/attention', attentionRoutes);
 app.use('/api/work-professional', workProfessionalRoutes);
 app.use('/api/personal-social', personalSocialRoutes);
 app.use('/api/compose', composeRoutes);
+app.use('/api/token_info', metricsRoutes);
 
 // Start Server
 app.listen(PORT, () => {

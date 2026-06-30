@@ -1,13 +1,15 @@
 const logger = require('../utils/logger');
 const { ChatOpenAI } = require('@langchain/openai');
 const { PromptTemplate } = require('@langchain/core/prompts');
-const { memoryDb } = require('../config/database');
+const { memoryDb, metricsDb } = require('../config/database');
+const { TpmCallback } = require('../utils/tpmCallback');
 
 // Initialize the LangChain LLM using the gpt-5.4-nano model
 const llm = new ChatOpenAI({
     openAIApiKey: process.env.OPENAI_API_KEY,
     modelName: "gpt-4o-mini", // Note: gpt-5.4-nano is a conceptual name; using gpt-4o-mini as the literal API equivalent for cheap/fast text processing
-    temperature: 0.2 // Low temperature for factual summarization
+    temperature: 0.2, // Low temperature for factual summarization
+    callbacks: [new TpmCallback()]
 });
 
 // The prompt template for squashing new messages into an existing summary
@@ -72,6 +74,23 @@ async function runMemoryNode(ueo) {
     });
     
     const newRunningSummary = response.content;
+
+    // Manual Node Tracking
+    let inputTokens = 0;
+    let outputTokens = 0;
+    if (response.usage_metadata) {
+        inputTokens = response.usage_metadata.input_tokens || 0;
+        outputTokens = response.usage_metadata.output_tokens || 0;
+    }
+    
+    metricsDb.prepare(`
+        INSERT INTO node_metrics (node_name, total_input_tokens, total_output_tokens, total_requests)
+        VALUES ('Memory Node', ?, ?, 1)
+        ON CONFLICT(node_name) DO UPDATE SET 
+            total_input_tokens = total_input_tokens + excluded.total_input_tokens,
+            total_output_tokens = total_output_tokens + excluded.total_output_tokens,
+            total_requests = total_requests + 1
+    `).run(inputTokens, outputTokens);
 
     // 7. Save to DB
     const stmt = memoryDb.prepare(`
